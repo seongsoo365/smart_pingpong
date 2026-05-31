@@ -13,25 +13,78 @@ interface Props {
   totalRounds: number
 }
 
+const CARD_W = 192   // px — match card width
+const SLOT_H = 96    // px — height per slot in the first round (card + spacing)
+const CONN_W = 36    // px — connector column width
+const HEADER_H = 28  // px — round label height
+
 export default function BracketView({ matches, totalRounds }: Props) {
   const rounds: BracketMatch[][] = []
   for (let r = 1; r <= totalRounds; r++) {
     rounds.push(matches.filter(m => m.round === r))
   }
 
+  const maxMatches = Math.max(...rounds.map(r => r.length), 1)
+  const matchAreaH = maxMatches * SLOT_H
+
   return (
     <div className="overflow-x-auto pb-4">
-      <div className="flex gap-6 min-w-max">
-        {rounds.map((roundMatches, ri) => (
-          <div key={ri} className="flex flex-col justify-around gap-4">
-            <div className="text-xs font-semibold text-muted-foreground text-center mb-2 uppercase tracking-wider">
-              {getRoundName(ri + 1, totalRounds)}
+      <div className="flex min-w-max items-start">
+        {rounds.map((roundMatches, ri) => {
+          const isLast = ri === rounds.length - 1
+          const n = roundMatches.length || 1
+
+          return (
+            <div key={ri} className="flex items-start">
+              {/* Round column */}
+              <div style={{ width: CARD_W }}>
+                <div
+                  className="text-xs font-semibold text-muted-foreground text-center uppercase tracking-wider"
+                  style={{ height: HEADER_H, lineHeight: `${HEADER_H}px` }}
+                >
+                  {getRoundName(ri + 1, totalRounds)}
+                </div>
+                <div
+                  className="flex flex-col justify-around"
+                  style={{ height: matchAreaH }}
+                >
+                  {roundMatches.map(match => (
+                    <BracketMatchCard key={match.id} match={match} />
+                  ))}
+                </div>
+              </div>
+
+              {/* SVG connector to next round */}
+              {!isLast && (
+                <div style={{ paddingTop: HEADER_H }}>
+                  <svg
+                    width={CONN_W}
+                    height={matchAreaH}
+                    className="shrink-0 overflow-visible"
+                  >
+                    {Array.from({ length: Math.floor(n / 2) }, (_, p) => {
+                      const yTop = matchAreaH * (4 * p + 1) / (2 * n)
+                      const yBot = matchAreaH * (4 * p + 3) / (2 * n)
+                      const yMid = (yTop + yBot) / 2
+                      const xMid = CONN_W / 2
+                      return (
+                        <g key={p} stroke="rgba(255,255,255,0.18)" strokeWidth="1" fill="none">
+                          <polyline points={`0,${yTop} ${xMid},${yTop} ${xMid},${yBot} 0,${yBot}`} />
+                          <line x1={xMid} y1={yMid} x2={CONN_W} y2={yMid} />
+                        </g>
+                      )
+                    })}
+                    {/* odd match (bye slot at bottom) straight through */}
+                    {n % 2 === 1 && (() => {
+                      const yLone = matchAreaH * (2 * (n - 1) + 1) / (2 * n)
+                      return <line key="lone" x1="0" y1={yLone} x2={CONN_W} y2={yLone} stroke="rgba(255,255,255,0.18)" strokeWidth="1" />
+                    })()}
+                  </svg>
+                </div>
+              )}
             </div>
-            {roundMatches.map((match) => (
-              <BracketMatchCard key={match.id} match={match} />
-            ))}
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
@@ -43,7 +96,7 @@ function BracketMatchCard({ match }: { match: BracketMatch }) {
   const isDone = status === 'completed'
 
   return (
-    <div className="glass rounded-xl overflow-hidden border border-white/10 w-48">
+    <div className="glass rounded-xl overflow-hidden border border-white/10" style={{ width: CARD_W }}>
       <ParticipantRow
         name={p1Name}
         score={score1}
@@ -73,7 +126,7 @@ function ParticipantRow({
       isEmpty && 'opacity-40'
     )}>
       <span className={cn('font-medium truncate flex-1 mr-2', isWinner ? 'text-primary' : 'text-foreground')}>
-        {name ?? (isEmpty ? 'TBD' : name)}
+        {name ?? 'TBD'}
       </span>
       {name && !isEmpty && (
         <span className={cn('font-bold text-base tabular-nums', isWinner ? 'text-primary' : 'text-muted-foreground')}>

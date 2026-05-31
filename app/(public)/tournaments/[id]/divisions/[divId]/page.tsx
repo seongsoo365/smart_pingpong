@@ -5,7 +5,7 @@ import { createClientSafe } from '@/lib/supabase/server'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import StandingsTable from '@/components/tournament/StandingsTable'
 import BracketView from '@/components/tournament/BracketView'
-import { getBracketRounds } from '@/lib/utils/bracket'
+
 import { calculateStandings } from '@/lib/utils/standings'
 import type { Player, Team, Match, MatchSet, Group } from '@/lib/types'
 
@@ -65,7 +65,9 @@ export default async function DivisionDetailPage({
     sets: m.sets as MatchSet[],
   }))
 
-  const mainRounds = main ? getBracketRounds(participants.length) : 0
+  const mainRounds = mainMatches && mainMatches.length > 0
+    ? Math.max(...(mainMatches as Match[]).map(m => m.round))
+    : 0
   const hasPrelim = (groups?.length ?? 0) > 0
   const hasMain = (mainMatches?.length ?? 0) > 0
 

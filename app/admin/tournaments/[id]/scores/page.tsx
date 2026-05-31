@@ -42,8 +42,13 @@ export default function ScoresPage() {
     setPhases(ph ?? [])
     setPlayers(pl ?? [])
 
-    const hasPrelim = (ph ?? []).some(p => p.phase_type === 'preliminary')
-    setSelectedPhaseType(hasPrelim ? 'preliminary' : 'main')
+    setSelectedPhaseType(prev => {
+      const hasPrelim = (ph ?? []).some(p => p.phase_type === 'preliminary')
+      const hasMain = (ph ?? []).some(p => p.phase_type === 'main')
+      if (prev === 'preliminary' && hasPrelim) return prev
+      if (prev === 'main' && hasMain) return prev
+      return hasPrelim ? 'preliminary' : 'main'
+    })
 
     const phaseIds = (ph ?? []).map(p => p.id)
     if (phaseIds.length === 0) return
@@ -173,20 +178,28 @@ export default function ScoresPage() {
     toast.success('선수 이름이 수정되었습니다')
   }
 
-  function MatchCard({ m }: { m: Match }) {
+  function renderMatch(m: Match) {
     const p1 = m.participant1_id ? pMap.get(m.participant1_id) : null
     const p2 = m.participant2_id ? pMap.get(m.participant2_id) : null
     const phase = phases.find(p => p.id === m.phase_id)
     const gamesNeeded = Math.ceil((phase?.games_per_match ?? 3) / 2)
     const isEditing = editing === m.id
 
-    if (m.status === 'completed') {
+    if (m.status === 'completed' && !isEditing) {
       return (
-        <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-white/5 text-sm">
+        <div key={m.id} className="flex items-center justify-between px-4 py-3 rounded-xl bg-white/5 text-sm">
           <span className={m.winner_id === m.participant1_id ? 'font-bold text-primary' : 'text-muted-foreground'}>
             {p1?.name ?? 'TBD'}
           </span>
-          <span className="font-bold tabular-nums mx-4">{m.score1} : {m.score2}</span>
+          <div className="flex items-center gap-2 mx-4">
+            <span className="font-bold tabular-nums">{m.score1} : {m.score2}</span>
+            <button
+              onClick={() => { setEditing(m.id); setScore1(m.score1); setScore2(m.score2) }}
+              className="p-1 text-muted-foreground hover:text-primary transition-colors"
+            >
+              <Pencil className="w-3 h-3" />
+            </button>
+          </div>
           <span className={m.winner_id === m.participant2_id ? 'font-bold text-primary' : 'text-muted-foreground'}>
             {p2?.name ?? 'TBD'}
           </span>
@@ -195,13 +208,12 @@ export default function ScoresPage() {
     }
 
     return (
-      <div className="glass rounded-xl border border-white/10 p-4">
+      <div key={m.id} className="glass rounded-xl border border-white/10 p-4">
         <div className="flex items-center gap-3">
           <div className="flex-1 text-right">
             <div className="font-bold truncate">{p1?.name ?? 'TBD'}</div>
             {p1?.club && <div className="text-xs text-muted-foreground">{p1.club}</div>}
           </div>
-
           {isEditing ? (
             <div className="flex items-center gap-2 shrink-0">
               <input type="number" min={0} max={gamesNeeded} value={score1}
@@ -215,13 +227,11 @@ export default function ScoresPage() {
           ) : (
             <div className="text-muted-foreground font-bold text-lg shrink-0">vs</div>
           )}
-
           <div className="flex-1">
             <div className="font-bold truncate">{p2?.name ?? 'TBD'}</div>
             {p2?.club && <div className="text-xs text-muted-foreground">{p2.club}</div>}
           </div>
         </div>
-
         <div className="flex justify-end gap-2 mt-3">
           {isEditing ? (
             <>
@@ -383,13 +393,13 @@ export default function ScoresPage() {
                       <span className="text-xs text-muted-foreground">미완료 {pending.length}경기</span>
                     )}
                   </div>
-                  {pending.map(m => <MatchCard key={m.id} m={m} />)}
+                  {pending.map(m => {renderMatch(m)})}
                   {completed.length > 0 && (
                     <div className="space-y-1.5">
                       {pending.length > 0 && (
                         <p className="text-xs text-muted-foreground font-medium pt-1">완료된 경기</p>
                       )}
-                      {completed.map(m => <MatchCard key={m.id} m={m} />)}
+                      {completed.map(m => {renderMatch(m)})}
                     </div>
                   )}
                 </section>
@@ -432,13 +442,13 @@ export default function ScoresPage() {
                     </div>
                   ) : (
                     <>
-                      {pending.map(m => <MatchCard key={m.id} m={m} />)}
+                      {pending.map(m => {renderMatch(m)})}
                       {completed.length > 0 && (
                         <div className="space-y-1.5">
                           {pending.length > 0 && (
                             <p className="text-xs text-muted-foreground font-medium pt-1">완료된 경기</p>
                           )}
-                          {completed.map(m => <MatchCard key={m.id} m={m} />)}
+                          {completed.map(m => {renderMatch(m)})}
                         </div>
                       )}
                     </>
