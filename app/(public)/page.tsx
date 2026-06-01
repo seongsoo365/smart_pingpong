@@ -9,16 +9,20 @@ export default async function HomePage() {
 
   const activeTournaments: Tournament[] = []
   const recentTournaments: Tournament[] = []
+  const draftTournaments: Tournament[] = []
 
   if (supabase) {
-    const [{ data: active }, { data: recent }] = await Promise.all([
+    const [{ data: active }, { data: recent }, { data: drafts }] = await Promise.all([
       supabase.from('tournaments').select('*').in('status', ['registration', 'in_progress'])
         .order('start_date', { ascending: true }).limit(6),
       supabase.from('tournaments').select('*').eq('status', 'completed')
         .order('end_date', { ascending: false }).limit(4),
+      supabase.from('tournaments').select('*').eq('status', 'draft')
+        .order('start_date', { ascending: true, nullsFirst: false }).limit(6),
     ])
     activeTournaments.push(...(active ?? []))
     recentTournaments.push(...(recent ?? []))
+    draftTournaments.push(...(drafts ?? []))
   }
 
   return (
@@ -80,7 +84,25 @@ export default async function HomePage() {
         </section>
       )}
 
-      {activeTournaments.length === 0 && recentTournaments.length === 0 && supabase && (
+      {/* Draft / upcoming */}
+      {draftTournaments.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-gray-400" />
+              준비 중
+            </h2>
+            <Link href="/tournaments?status=draft" className="text-sm text-primary hover:underline flex items-center gap-1">
+              전체 보기 <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {draftTournaments.map(t => <TournamentCard key={t.id} tournament={t} />)}
+          </div>
+        </section>
+      )}
+
+      {activeTournaments.length === 0 && recentTournaments.length === 0 && draftTournaments.length === 0 && supabase && (
         <div className="text-center py-20 text-muted-foreground">
           <Trophy className="w-16 h-16 mx-auto mb-4 opacity-30" />
           <p className="text-lg font-medium">아직 등록된 대회가 없습니다</p>

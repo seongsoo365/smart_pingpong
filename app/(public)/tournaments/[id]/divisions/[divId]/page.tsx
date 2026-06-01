@@ -5,9 +5,10 @@ import { createClientSafe } from '@/lib/supabase/server'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import StandingsTable from '@/components/tournament/StandingsTable'
 import BracketView from '@/components/tournament/BracketView'
+import GroupMatrix from '@/components/tournament/GroupMatrix'
 
 import { calculateStandings } from '@/lib/utils/standings'
-import type { Player, Team, Match, MatchSet, Group } from '@/lib/types'
+import type { Player, Team, Match, MatchSet, Group, Standing } from '@/lib/types'
 
 const genderLabel: Record<string, string> = { male: '남자', female: '여자', mixed: '혼합' }
 const matchTypeLabel: Record<string, string> = { individual: '개인전', team: '단체전' }
@@ -57,11 +58,18 @@ export default async function DivisionDetailPage({
       : Promise.resolve({ data: [] as Match[] }),
   ])
 
+  const groupIds = (groups ?? []).map(g => g.id)
+  const { data: storedStandings } = groupIds.length > 0
+    ? await supabase.from('standings').select('*').in('group_id', groupIds)
+    : { data: [] as Standing[] }
+
   const pMap = new Map(participants.map(p => [p.id, p]))
   const annotatedMain = (mainMatches ?? []).map((m: Match) => ({
     ...m,
     p1Name: m.participant1_id ? (pMap.get(m.participant1_id) as Player)?.name : undefined,
+    p1Club: m.participant1_id ? (pMap.get(m.participant1_id) as Player)?.club : undefined,
     p2Name: m.participant2_id ? (pMap.get(m.participant2_id) as Player)?.name : undefined,
+    p2Club: m.participant2_id ? (pMap.get(m.participant2_id) as Player)?.club : undefined,
     sets: m.sets as MatchSet[],
   }))
 
@@ -116,15 +124,48 @@ export default async function DivisionDetailPage({
                   ...groupMatches.map((m: Match) => m.participant1_id),
                   ...groupMatches.map((m: Match) => m.participant2_id),
                 ].filter(Boolean))] as string[]
-                const rows = calculateStandings(groupMatches as Match[], ids).map(s => ({
-                  ...s,
-                  name: (pMap.get(s.participant_id) as Player)?.name ?? '?',
-                  club: (pMap.get(s.participant_id) as Player)?.club,
+
+                const groupStoredStandings = (storedStandings ?? []).filter(
+                  (s: Standing) => s.group_id === group.id
+                )
+
+                let rows: { ranking: number; participant_id: string; name: string; club?: string; wins: number; losses: number; sets_won: number; sets_lost: number; points_won: number; points_lost: number }[]
+
+                if (groupStoredStandings.length >= ids.length && ids.length > 0) {
+                  rows = groupStoredStandings
+                    .sort((a: Standing, b: Standing) => a.ranking - b.ranking)
+                    .map((s: Standing) => ({
+                      ...s,
+                      name: (pMap.get(s.participant_id) as Player)?.name ?? '?',
+                      club: (pMap.get(s.participant_id) as Player)?.club,
+                    }))
+                } else {
+                  rows = calculateStandings(groupMatches as Match[], ids).map(s => ({
+                    ...s,
+                    name: (pMap.get(s.participant_id) as Player)?.name ?? '?',
+                    club: (pMap.get(s.participant_id) as Player)?.club,
+                  }))
+                }
+
+                const orderedParticipants = rows.map(r => ({
+                  id: r.participant_id,
+                  name: r.name,
+                  club: r.club,
                 }))
+
                 return (
                   <div key={group.id} className="space-y-3">
                     <h3 className="font-bold">{group.name}</h3>
                     <StandingsTable rows={rows} advanceCount={prelim?.advancement_count ?? 2} />
+                    {groupMatches.some((m: Match) => m.status === 'completed') && (
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground font-medium px-1">상대 전적</p>
+                        <GroupMatrix
+                          participants={orderedParticipants}
+                          matches={groupMatches as Match[]}
+                        />
+                      </div>
+                    )}
                   </div>
                 )
               })}

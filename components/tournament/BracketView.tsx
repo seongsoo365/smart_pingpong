@@ -6,6 +6,8 @@ import { getRoundName } from '@/lib/utils/bracket'
 interface BracketMatch extends Match {
   p1Name?: string
   p2Name?: string
+  p1Club?: string
+  p2Club?: string
 }
 
 interface Props {
@@ -91,7 +93,7 @@ export default function BracketView({ matches, totalRounds }: Props) {
 }
 
 function BracketMatchCard({ match }: { match: BracketMatch }) {
-  const { p1Name, p2Name, score1, score2, status, winner_id, participant1_id, participant2_id } = match
+  const { p1Name, p1Club, p2Name, p2Club, score1, score2, status, winner_id, participant1_id, participant2_id } = match
   const isBye = status === 'bye'
   const isDone = status === 'completed'
 
@@ -99,6 +101,7 @@ function BracketMatchCard({ match }: { match: BracketMatch }) {
     <div className="glass rounded-xl overflow-hidden border border-white/10" style={{ width: CARD_W }}>
       <ParticipantRow
         name={p1Name}
+        club={p1Club}
         score={score1}
         isWinner={isDone && winner_id === participant1_id}
         isEmpty={!p1Name}
@@ -106,6 +109,7 @@ function BracketMatchCard({ match }: { match: BracketMatch }) {
       <div className="h-px bg-white/10" />
       <ParticipantRow
         name={isBye ? '부전승' : p2Name}
+        club={isBye ? undefined : p2Club}
         score={score2}
         isWinner={isDone && winner_id === participant2_id}
         isEmpty={!p2Name && !isBye}
@@ -115,21 +119,26 @@ function BracketMatchCard({ match }: { match: BracketMatch }) {
 }
 
 function ParticipantRow({
-  name, score, isWinner, isEmpty,
+  name, club, score, isWinner, isEmpty,
 }: {
-  name?: string; score: number; isWinner: boolean; isEmpty: boolean
+  name?: string; club?: string; score: number; isWinner: boolean; isEmpty: boolean
 }) {
   return (
     <div className={cn(
-      'flex items-center justify-between px-3 py-2.5 text-sm',
+      'flex items-center justify-between px-3 py-2 text-sm',
       isWinner && 'bg-primary/10',
       isEmpty && 'opacity-40'
     )}>
-      <span className={cn('font-medium truncate flex-1 mr-2', isWinner ? 'text-primary' : 'text-foreground')}>
-        {name ?? 'TBD'}
-      </span>
+      <div className="flex-1 min-w-0 mr-2">
+        <div className={cn('font-medium truncate', isWinner ? 'text-primary' : 'text-foreground')}>
+          {name ?? 'TBD'}
+          {club && (
+            <span className="text-[11px] font-normal text-muted-foreground ml-1">({club})</span>
+          )}
+        </div>
+      </div>
       {name && !isEmpty && (
-        <span className={cn('font-bold text-base tabular-nums', isWinner ? 'text-primary' : 'text-muted-foreground')}>
+        <span className={cn('font-bold text-base tabular-nums shrink-0', isWinner ? 'text-primary' : 'text-muted-foreground')}>
           {score}
         </span>
       )}

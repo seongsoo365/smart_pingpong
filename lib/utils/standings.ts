@@ -1,9 +1,36 @@
 import type { Match, Standing } from '@/lib/types'
 
+type StandingRow = Omit<Standing, 'id' | 'group_id' | 'updated_at'>
+
+function isSameTier(a: StandingRow, b: StandingRow): boolean {
+  return (
+    a.wins === b.wins &&
+    a.sets_won - a.sets_lost === b.sets_won - b.sets_lost &&
+    a.points_won - a.points_lost === b.points_won - b.points_lost
+  )
+}
+
+export function hasTieAtBoundary(standings: StandingRow[], advanceCount: number): boolean {
+  if (standings.length <= advanceCount) return false
+  return isSameTier(standings[advanceCount - 1], standings[advanceCount])
+}
+
+export function getTieGroups(standings: StandingRow[]): number[][] {
+  const result: number[][] = []
+  let i = 0
+  while (i < standings.length) {
+    let j = i + 1
+    while (j < standings.length && isSameTier(standings[i], standings[j])) j++
+    if (j > i + 1) result.push(Array.from({ length: j - i }, (_, k) => i + k))
+    i = j
+  }
+  return result
+}
+
 export function calculateStandings(
   matches: Match[],
   participantIds: string[]
-): Omit<Standing, 'id' | 'group_id' | 'updated_at'>[] {
+): StandingRow[] {
   const stats: Record<string, {
     participant_id: string
     wins: number

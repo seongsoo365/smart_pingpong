@@ -24,16 +24,19 @@ export default async function TournamentsPage({
   let tournaments: Tournament[] = []
 
   if (supabase) {
-    let query = supabase.from('tournaments').select('*').order('start_date', { ascending: false })
+    let query = supabase.from('tournaments').select('*')
+      .order('start_date', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false })
     if (status && status !== 'all') query = query.eq('status', status as TournamentStatus)
     if (year) query = query.gte('start_date', `${year}-01-01`).lte('start_date', `${year}-12-31`)
     if (q) query = query.ilike('name', `%${q}%`)
-    const { data } = await query.limit(50)
+    const { data, error } = await query.limit(50)
+    if (error) console.error('[tournaments] query error:', error.message)
     tournaments = data ?? []
   }
 
   const currentYear = new Date().getFullYear()
-  const years = Array.from({ length: 5 }, (_, i) => currentYear - i)
+  const years = Array.from({ length: 5 }, (_, i) => currentYear + 1 - i)
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">

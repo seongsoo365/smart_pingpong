@@ -2,11 +2,13 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft, CheckCircle, Pencil, Check, X, ChevronDown } from 'lucide-react'
+import { ChevronLeft, CheckCircle, Pencil, Check, X, ChevronDown, ChevronUp, AlertTriangle, TableIcon } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { calculateStandings } from '@/lib/utils/standings'
+import { calculateStandings, hasTieAtBoundary, getTieGroups } from '@/lib/utils/standings'
 import { getRoundName } from '@/lib/utils/bracket'
+import GroupMatrix from '@/components/tournament/GroupMatrix'
+import { cn } from '@/lib/utils'
 import type { Division, Player, TournamentPhase, Match, Group } from '@/lib/types'
 
 const genderLabel: Record<string, string> = { male: '남자', female: '여자', mixed: '혼합' }
@@ -27,6 +29,10 @@ export default function ScoresPage() {
   const [editPlayerName, setEditPlayerName] = useState('')
   const [editPlayerClub, setEditPlayerClub] = useState('')
   const [selectedPhaseType, setSelectedPhaseType] = useState<'preliminary' | 'main'>('preliminary')
+  // tieBreaks: groupId → manually-ordered participant IDs (only set when tie detected)
+  const [tieBreaks, setTieBreaks] = useState<Record<string, string[]>>({})
+  // showMatrix: groupId → boolean toggle
+  const [showMatrix, setShowMatrix] = useState<Record<string, boolean>>({})
   const supabase = createClient()
 
   useEffect(() => {
@@ -87,6 +93,31 @@ export default function ScoresPage() {
 
   useEffect(() => { if (selectedDivId) loadData(selectedDivId) }, [selectedDivId])
 
+  // Detect completed groups with ties after every match update
+  useEffect(() => {
+    const prelimPhase = phases.find(p => p.phase_type === 'preliminary')
+    if (!prelimPhase) return
+    const groupsInPhase = groups.filter(g => g.phase_id === prelimPhase.id)
+
+    setTieBreaks(prev => {
+      const next: Record<string, string[]> = {}
+      for (const group of groupsInPhase) {
+        const gMatches = matches.filter(m => m.group_id === group.id)
+        if (gMatches.length === 0 || !gMatches.every(m => m.status === 'completed')) continue
+        const ids = [...new Set([
+          ...gMatches.map(m => m.participant1_id),
+          ...gMatches.map(m => m.participant2_id),
+        ].filter(Boolean))] as string[]
+        const standings = calculateStandings(gMatches, ids)
+        if (getTieGroups(standings).length > 0) {
+          // Keep existing manual ordering if already set for this group
+          next[group.id] = prev[group.id] ?? standings.map(s => s.participant_id)
+        }
+      }
+      return next
+    })
+  }, [matches, groups, phases])
+
   const pMap = new Map(players.map(p => [p.id, p]))
 
   async function saveScore(match: Match) {
@@ -138,8 +169,16 @@ export default function ScoresPage() {
 
     const standings = calculateStandings(updatedMatches, participantIds)
     const advanceCount = phase.advancement_count ?? 2
-    const advancers = standings.slice(0, advanceCount).map(s => s.participant_id)
 
+    // If there's a tie at the advancement boundary, block auto-advancement
+    if (hasTieAtBoundary(standings, advanceCount)) return
+
+    await advanceGroup(groupId, phase, standings.map(s => s.participant_id))
+  }
+
+  async function advanceGroup(groupId: string, phase: TournamentPhase, orderedIds: string[]) {
+    const advanceCount = phase.advancement_count ?? 2
+    const advancers = orderedIds.slice(0, advanceCount)
     const mainPhase = phases.find(p => p.phase_type === 'main')
     if (!mainPhase || advancers.length === 0) return
 
@@ -155,6 +194,67 @@ export default function ScoresPage() {
         isP1 ? { participant1_id: advancers[i] } : { participant2_id: advancers[i] }
       ).eq('id', targetMatch.id)
     }
+  }
+
+  async function confirmRanking(groupId: string) {
+    const orderedIds = tieBreaks[groupId]
+    if (!orderedIds) return
+
+    const phase = phases.find(p => p.phase_type === 'preliminary')
+    if (!phase) return
+
+    const groupMatches = matches.filter(m => m.group_id === groupId)
+    const participantIds = [...new Set([
+      ...groupMatches.map(m => m.participant1_id),
+      ...groupMatches.map(m => m.participant2_id),
+    ].filter(Boolean))] as string[]
+
+    const rawStandings = calculateStandings(groupMatches, participantIds)
+    const statsMap = new Map(rawStandings.map(s => [s.participant_id, s]))
+
+    // Save to standings table
+    const upserts = orderedIds.map((pid, idx) => {
+      const s = statsMap.get(pid) ?? { wins: 0, losses: 0, sets_won: 0, sets_lost: 0, points_won: 0, points_lost: 0 }
+      return {
+        group_id: groupId,
+        participant_id: pid,
+        ranking: idx + 1,
+        wins: s.wins,
+        losses: s.losses,
+        sets_won: s.sets_won,
+        sets_lost: s.sets_lost,
+        points_won: s.points_won,
+        points_lost: s.points_lost,
+      }
+    })
+    const { error } = await supabase.from('standings').upsert(upserts, { onConflict: 'group_id,participant_id' })
+    if (error) { toast.error('순위 저장 실패: ' + error.message); return }
+
+    // Advance to main phase if not yet done
+    await advanceGroup(groupId, phase, orderedIds)
+
+    setTieBreaks(prev => { const n = { ...prev }; delete n[groupId]; return n })
+    toast.success('순위가 확정되었습니다')
+    await loadData(selectedDivId)
+  }
+
+  function moveInTie(groupId: string, fromIdx: number, dir: -1 | 1) {
+    const toIdx = fromIdx + dir
+    setTieBreaks(prev => {
+      const arr = [...(prev[groupId] ?? [])]
+      if (toIdx < 0 || toIdx >= arr.length) return prev
+      // Only allow swapping within a tied group
+      const gMatches = matches.filter(m => m.group_id === groupId)
+      const ids = [...new Set([...gMatches.map(m => m.participant1_id), ...gMatches.map(m => m.participant2_id)].filter(Boolean))] as string[]
+      const standings = calculateStandings(gMatches, ids)
+      const tiedGroups = getTieGroups(standings)
+      const fromOriginalIdx = standings.findIndex(s => s.participant_id === arr[fromIdx])
+      const toOriginalIdx = standings.findIndex(s => s.participant_id === arr[toIdx])
+      const canSwap = tiedGroups.some(g => g.includes(fromOriginalIdx) && g.includes(toOriginalIdx))
+      if (!canSwap) return prev;
+      [arr[fromIdx], arr[toIdx]] = [arr[toIdx], arr[fromIdx]]
+      return { ...prev, [groupId]: arr }
+    })
   }
 
   function startEditPlayer(p: Player) {
@@ -381,25 +481,144 @@ export default function ScoresPage() {
               const groupMatches = currentPhaseMatches.filter(m => m.group_id === group.id)
               const pending = groupMatches.filter(m => m.status === 'pending' || m.status === 'in_progress')
               const completed = groupMatches.filter(m => m.status === 'completed')
+              const allDone = pending.length === 0 && completed.length > 0
+
+              // Compute standings for this group (for tie-break UI)
+              const groupIds = [...new Set([
+                ...groupMatches.map(m => m.participant1_id),
+                ...groupMatches.map(m => m.participant2_id),
+              ].filter(Boolean))] as string[]
+              const groupStandings = calculateStandings(groupMatches, groupIds)
+              const tieGroups = getTieGroups(groupStandings)
+              const tiedIndices = new Set(tieGroups.flat())
+              const advanceCount = currentPhase.advancement_count ?? 2
+
+              // Participants in standing order for matrix
+              const rankedParticipants = groupStandings.map(s => ({
+                id: s.participant_id,
+                name: pMap.get(s.participant_id)?.name ?? '?',
+                club: pMap.get(s.participant_id)?.club,
+              }))
+
               return (
                 <section key={group.id} className="space-y-3">
                   <div className="flex items-center gap-2">
                     <h2 className="font-semibold">{group.name}</h2>
-                    {pending.length === 0 ? (
+                    {allDone && !tieBreaks[group.id] ? (
                       <span className="text-xs text-emerald-400 flex items-center gap-1">
                         <CheckCircle className="w-3 h-3" /> 완료
+                      </span>
+                    ) : allDone && tieBreaks[group.id] ? (
+                      <span className="text-xs text-orange-400 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" /> 동률 — 순위 확정 필요
                       </span>
                     ) : (
                       <span className="text-xs text-muted-foreground">미완료 {pending.length}경기</span>
                     )}
                   </div>
-                  {pending.map(m => {renderMatch(m)})}
+
+                  {/* Tie-break panel */}
+                  {tieBreaks[group.id] && (
+                    <div className="glass rounded-xl border border-orange-500/30 p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 text-orange-400 shrink-0" />
+                        <span className="text-sm font-semibold text-orange-400">
+                          동률 발생 — 순위를 수동으로 조정해주세요
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        {tieBreaks[group.id].map((pid, idx) => {
+                          const player = pMap.get(pid)
+                          const isAdvancing = idx < advanceCount
+                          // Find this player's original index in calculated standings
+                          const origIdx = groupStandings.findIndex(s => s.participant_id === pid)
+                          const isTied = tiedIndices.has(origIdx)
+                          const canUp = idx > 0 && (() => {
+                            const prevPid = tieBreaks[group.id][idx - 1]
+                            const prevOrigIdx = groupStandings.findIndex(s => s.participant_id === prevPid)
+                            return tieGroups.some(g => g.includes(origIdx) && g.includes(prevOrigIdx))
+                          })()
+                          const canDown = idx < tieBreaks[group.id].length - 1 && (() => {
+                            const nextPid = tieBreaks[group.id][idx + 1]
+                            const nextOrigIdx = groupStandings.findIndex(s => s.participant_id === nextPid)
+                            return tieGroups.some(g => g.includes(origIdx) && g.includes(nextOrigIdx))
+                          })()
+                          return (
+                            <div
+                              key={pid}
+                              className={cn(
+                                'flex items-center gap-3 px-3 py-2 rounded-lg',
+                                isAdvancing ? 'bg-primary/10 border border-primary/20' : 'bg-white/5',
+                                isTied && 'border-l-2 border-l-orange-400/60'
+                              )}
+                            >
+                              <span className="w-5 text-center text-sm font-bold text-muted-foreground shrink-0">
+                                {idx + 1}
+                              </span>
+                              <span className="flex-1 text-sm font-medium">{player?.name ?? pid}</span>
+                              {player?.club && (
+                                <span className="text-xs text-muted-foreground hidden sm:block">{player.club}</span>
+                              )}
+                              {isAdvancing && (
+                                <span className="text-xs text-primary shrink-0">본선↑</span>
+                              )}
+                              {isTied && (
+                                <div className="flex gap-0.5 shrink-0">
+                                  <button
+                                    disabled={!canUp}
+                                    onClick={() => moveInTie(group.id, idx, -1)}
+                                    className="p-1 rounded hover:bg-white/10 disabled:opacity-30 transition-colors"
+                                  >
+                                    <ChevronUp className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    disabled={!canDown}
+                                    onClick={() => moveInTie(group.id, idx, 1)}
+                                    className="p-1 rounded hover:bg-white/10 disabled:opacity-30 transition-colors"
+                                  >
+                                    <ChevronDown className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                      <button
+                        onClick={() => confirmRanking(group.id)}
+                        className="w-full py-2 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors"
+                      >
+                        순위 확정 및 본선 진출 처리
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Matrix toggle */}
+                  {completed.length > 0 && (
+                    <div>
+                      <button
+                        onClick={() => setShowMatrix(prev => ({ ...prev, [group.id]: !prev[group.id] }))}
+                        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
+                      >
+                        <TableIcon className="w-3.5 h-3.5" />
+                        상대 전적 {showMatrix[group.id] ? '숨기기' : '보기'}
+                        <ChevronDown className={cn('w-3 h-3 transition-transform', showMatrix[group.id] && 'rotate-180')} />
+                      </button>
+                      {showMatrix[group.id] && (
+                        <div className="mt-2">
+                          <GroupMatrix participants={rankedParticipants} matches={groupMatches} />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {pending.map(m => renderMatch(m))}
                   {completed.length > 0 && (
                     <div className="space-y-1.5">
                       {pending.length > 0 && (
                         <p className="text-xs text-muted-foreground font-medium pt-1">완료된 경기</p>
                       )}
-                      {completed.map(m => {renderMatch(m)})}
+                      {completed.map(m => renderMatch(m))}
                     </div>
                   )}
                 </section>
@@ -442,13 +661,13 @@ export default function ScoresPage() {
                     </div>
                   ) : (
                     <>
-                      {pending.map(m => {renderMatch(m)})}
+                      {pending.map(m => renderMatch(m))}
                       {completed.length > 0 && (
                         <div className="space-y-1.5">
                           {pending.length > 0 && (
                             <p className="text-xs text-muted-foreground font-medium pt-1">완료된 경기</p>
                           )}
-                          {completed.map(m => {renderMatch(m)})}
+                          {completed.map(m => renderMatch(m))}
                         </div>
                       )}
                     </>
