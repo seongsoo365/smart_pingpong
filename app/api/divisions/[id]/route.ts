@@ -11,7 +11,7 @@ export async function PATCH(
   if (!user) return NextResponse.json({ error: '인증 필요' }, { status: 401 })
 
   const body = await req.json()
-  const { name, gender, match_type } = body
+  const { name, gender, match_type, team_match_format } = body
 
   const { data: division } = await supabase
     .from('divisions')
@@ -41,7 +41,7 @@ export async function PATCH(
 
   const { data, error } = await supabase
     .from('divisions')
-    .update({ name, gender, match_type })
+    .update({ name, gender, match_type, team_match_format: team_match_format ?? null })
     .eq('id', id)
     .select()
     .single()

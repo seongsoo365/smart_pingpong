@@ -5,12 +5,13 @@ import { Plus, Trash2, ChevronLeft } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import type { Gender, MatchType } from '@/lib/types'
+import type { Gender, MatchType, TeamMatchFormat } from '@/lib/types'
 
 interface DivisionForm {
   name: string
   gender: Gender
   match_type: MatchType
+  team_match_format: TeamMatchFormat | ''
   display_order: number
   has_preliminary: boolean
   prelim_format: 'round_robin' | 'group_knockout'
@@ -19,10 +20,29 @@ interface DivisionForm {
   advancement_count: number
 }
 
+const TEAM_FORMAT_GAMES: Record<TeamMatchFormat, number> = {
+  olympic: 5,
+  traditional_4s1d: 5,
+  swaythling: 9,
+  singles_2_doubles_1: 3,
+  three_doubles: 3,
+  three_singles: 3,
+}
+
+const TEAM_FORMAT_LABEL: Record<TeamMatchFormat, string> = {
+  olympic: '올림픽 공식 — 3인, 5전3선(복·단·단·단)',
+  traditional_4s1d: '4단 1복 — 최소4인, 5전3선(단·단·복·단·단)',
+  swaythling: '스웨이틀링 컵 — 3명, 9전5선',
+  singles_2_doubles_1: '2단 1복 — 2-3명, 3전2선(단·복·단)',
+  three_doubles: '3복식 — 6명, 3전2선(복·복·복)',
+  three_singles: '3단식 — 3명, 3전2선(단·단·단)',
+}
+
 const defaultDivision = (): DivisionForm => ({
   name: '1부',
   gender: 'male',
   match_type: 'individual',
+  team_match_format: '',
   display_order: 0,
   has_preliminary: false,
   prelim_format: 'round_robin',
@@ -51,7 +71,18 @@ export default function NewTournamentPage() {
   }
 
   function updateDivision(idx: number, key: keyof DivisionForm, value: string | boolean | number) {
-    setDivisions(prev => prev.map((d, i) => i === idx ? { ...d, [key]: value } : d))
+    setDivisions(prev => prev.map((d, i) => {
+      if (i !== idx) return d
+      const updated = { ...d, [key]: value }
+      if (key === 'team_match_format' && typeof value === 'string' && value in TEAM_FORMAT_GAMES) {
+        updated.games_per_match = TEAM_FORMAT_GAMES[value as TeamMatchFormat]
+      }
+      if (key === 'match_type' && value === 'individual') {
+        updated.team_match_format = ''
+        updated.games_per_match = 3
+      }
+      return updated
+    }))
   }
 
   function addDivision() {
@@ -90,6 +121,7 @@ export default function NewTournamentPage() {
           name: div.name,
           gender: div.gender,
           match_type: div.match_type,
+          team_match_format: div.team_match_format || null,
           display_order: i,
         })
         .select()
@@ -233,15 +265,28 @@ export default function NewTournamentPage() {
                     <option value="team">단체전</option>
                   </select>
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">경기 방식 (게임 수)</label>
-                  <select value={div.games_per_match} onChange={e => updateDivision(idx, 'games_per_match', Number(e.target.value))}
-                    className="w-full glass border border-white/10 rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary">
-                    <option value={3}>3판 2선</option>
-                    <option value={5}>5판 3선</option>
-                    <option value={7}>7판 4선</option>
-                  </select>
-                </div>
+                {div.match_type === 'individual' ? (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">경기 방식 (게임 수)</label>
+                    <select value={div.games_per_match} onChange={e => updateDivision(idx, 'games_per_match', Number(e.target.value))}
+                      className="w-full glass border border-white/10 rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary">
+                      <option value={3}>3판 2선</option>
+                      <option value={5}>5판 3선</option>
+                      <option value={7}>7판 4선</option>
+                    </select>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">단체전 방식</label>
+                    <select value={div.team_match_format} onChange={e => updateDivision(idx, 'team_match_format', e.target.value)}
+                      className="w-full glass border border-white/10 rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary">
+                      <option value="">-- 방식 선택 --</option>
+                      {(Object.entries(TEAM_FORMAT_LABEL) as [TeamMatchFormat, string][]).map(([val, label]) => (
+                        <option key={val} value={val}>{label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="col-span-2 sm:col-span-1 flex items-center gap-2 pt-6">
                   <input type="checkbox" id={`prelim-${idx}`} checked={div.has_preliminary}
                     onChange={e => updateDivision(idx, 'has_preliminary', e.target.checked)}

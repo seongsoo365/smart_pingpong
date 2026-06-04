@@ -12,6 +12,14 @@ import type { Player, Team, Match, MatchSet, Group, Standing } from '@/lib/types
 
 const genderLabel: Record<string, string> = { male: '남자', female: '여자', mixed: '혼합' }
 const matchTypeLabel: Record<string, string> = { individual: '개인전', team: '단체전' }
+const teamMatchFormatLabel: Record<string, string> = {
+  olympic: '올림픽 공식 (3인, 5전3선)',
+  traditional_4s1d: '4단 1복 (최소4인, 5전3선)',
+  swaythling: '스웨이틀링 컵 (3명, 9전5선)',
+  singles_2_doubles_1: '2단 1복 (2-3명, 3전2선)',
+  three_doubles: '3복식 (6명, 3전2선)',
+  three_singles: '3단식 (3명, 3전2선)',
+}
 
 export default async function DivisionDetailPage({
   params,
@@ -90,7 +98,12 @@ export default async function DivisionDetailPage({
         <h1 className="text-2xl font-extrabold">
           {genderLabel[division.gender]} {division.name}
         </h1>
-        <p className="text-muted-foreground text-sm">{matchTypeLabel[division.match_type]}</p>
+        <p className="text-muted-foreground text-sm">
+          {matchTypeLabel[division.match_type]}
+          {division.match_type === 'team' && division.team_match_format && (
+            <span className="ml-2 text-accent">{teamMatchFormatLabel[division.team_match_format]}</span>
+          )}
+        </p>
       </div>
 
       <section className="glass rounded-2xl p-5 border border-white/10">

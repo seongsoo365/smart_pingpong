@@ -1,6 +1,6 @@
 # Smart Pingpong 로드맵
 
-> 마지막 업데이트: 2026-06-01  
+> 마지막 업데이트: 2026-06-04  
 > 상태 표시: ✅ 완료 · 🔄 진행 중 · ⬜ 예정 · ❌ 보류
 
 ---
@@ -21,6 +21,7 @@
 - ✅ 본선 브라켓 뷰 (선수명 + 소속 표시)
 - ✅ 관리자 인증 (Supabase Auth) 및 역할 권한 (system_admin / tournament_admin)
 - ✅ Supabase 미설정 시 SetupBanner 표시로 graceful degradation
+- ✅ 단체전 방식 선택 — 올림픽 공식 / 4단1복 / 스웨이틀링 컵 / 2단1복 / 3복식 / 3단식 (6종)
 
 ---
 
@@ -31,7 +32,7 @@
 | 항목 | 내용 | 상태 |
 |------|------|------|
 | Supabase 프로젝트 생성 | 프로덕션용 Supabase 프로젝트 신규 생성 | ⬜ |
-| 마이그레이션 실행 | `001_initial_schema.sql` → `002_fix_rls_recursion.sql` 순서대로 SQL Editor 실행 | ⬜ |
+| 마이그레이션 실행 | `001_initial_schema.sql` → `002_fix_rls_recursion.sql` → `003_team_match_format.sql` 순서대로 SQL Editor 실행 | ✅ |
 | 초기 system_admin 계정 생성 | Supabase Authentication에서 첫 관리자 계정 생성 후 `user_profiles.role`을 `system_admin`으로 수동 업데이트 | ⬜ |
 | Vercel 프로젝트 연결 | GitHub 저장소 연결, Framework: Next.js 자동 감지 | ⬜ |
 | 환경 변수 등록 | Vercel > Settings > Environment Variables에 아래 3개 등록 | ⬜ |
@@ -150,12 +151,16 @@ const seeded = [...players]
 
 ### FEAT-05 · 단체전(팀전) 지원
 - **내용:** `Team`, `TeamMember` DB 모델은 이미 존재하나 관리 UI 전무
+- **완료:**
+  - ✅ 단체전 방식 6종 선택 (divisions.team_match_format) — `003_team_match_format.sql` 적용 완료
+  - ✅ 대회 생성/부수 편집 UI에 방식 드롭다운 추가
+  - ✅ 공개 페이지 부수 상세에 방식 표시
 - **구현 필요 항목:**
   - 팀 등록 / 수정 / 삭제 (`/admin/tournaments/[id]/players` 팀 탭)
   - 팀원 구성 입력 (팀당 최대 N명)
-  - 팀전 결과 입력 UI (단체전 세트별 개인 경기 구조)
+  - 팀전 결과 입력 UI (단체전 개인 경기별 구조 — 방식에 따라 경기 수/순서 상이)
   - 공개 페이지 팀 브라켓 뷰
-- **상태:** ⬜
+- **상태:** 🔄
 
 ---
 
@@ -195,3 +200,4 @@ const seeded = [...players]
 |------|------|-----------|
 | v0.1 | 2026-06-01 | 초기 베이스라인 커밋 |
 | v0.2 | 2026-06-01 | 예선 전적 매트릭스, 동률 수동 순위, 본선 선수명/소속 표시 |
+| v0.3 | 2026-06-04 | 단체전 방식 6종 선택 추가 (divisions.team_match_format), DB 마이그레이션 적용 |

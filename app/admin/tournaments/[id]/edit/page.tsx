@@ -4,14 +4,23 @@ import Link from 'next/link'
 import { ChevronLeft, Users, GitBranch, ClipboardList, Plus, Trash2, Save, ExternalLink, Pencil, Check, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import type { Tournament, Division, Gender, MatchType } from '@/lib/types'
+import type { Tournament, Division, Gender, MatchType, TeamMatchFormat } from '@/lib/types'
 
 const genderLabel: Record<string, string> = { male: '남자', female: '여자', mixed: '혼합' }
 const matchTypeLabel: Record<string, string> = { individual: '개인전', team: '단체전' }
 
-interface DivisionForm { name: string; gender: Gender; match_type: MatchType }
+const TEAM_FORMAT_LABEL: Record<TeamMatchFormat, string> = {
+  olympic: '올림픽 공식 — 3인, 5전3선(복·단·단·단)',
+  traditional_4s1d: '4단 1복 — 최소4인, 5전3선(단·단·복·단·단)',
+  swaythling: '스웨이틀링 컵 — 3명, 9전5선',
+  singles_2_doubles_1: '2단 1복 — 2-3명, 3전2선(단·복·단)',
+  three_doubles: '3복식 — 6명, 3전2선(복·복·복)',
+  three_singles: '3단식 — 3명, 3전2선(단·단·단)',
+}
+
+interface DivisionForm { name: string; gender: Gender; match_type: MatchType; team_match_format: TeamMatchFormat | '' }
 type NewDivisionForm = DivisionForm
-const defaultNewDiv = (): DivisionForm => ({ name: '', gender: 'male', match_type: 'individual' })
+const defaultNewDiv = (): DivisionForm => ({ name: '', gender: 'male', match_type: 'individual', team_match_format: '' })
 
 export default function TournamentEditPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -85,7 +94,12 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
     const res = await fetch('/api/divisions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tournament_id: id, ...newDiv, display_order: divisions.length }),
+      body: JSON.stringify({
+        tournament_id: id,
+        ...newDiv,
+        team_match_format: newDiv.team_match_format || null,
+        display_order: divisions.length,
+      }),
     })
     if (res.ok) {
       const created = await res.json()
@@ -102,7 +116,7 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
 
   function startEditDiv(div: Division) {
     setEditingDivId(div.id)
-    setEditDiv({ name: div.name, gender: div.gender, match_type: div.match_type })
+    setEditDiv({ name: div.name, gender: div.gender, match_type: div.match_type, team_match_format: div.team_match_format ?? '' })
   }
 
   async function handleSaveDivision(e: React.FormEvent) {
@@ -112,7 +126,7 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
     const res = await fetch(`/api/divisions/${editingDivId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(editDiv),
+      body: JSON.stringify({ ...editDiv, team_match_format: editDiv.team_match_format || null }),
     })
     if (res.ok) {
       const updated = await res.json()
@@ -275,12 +289,24 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs text-muted-foreground">경기 유형</label>
-                      <select value={editDiv.match_type} onChange={e => setEditDiv(p => ({ ...p, match_type: e.target.value as MatchType }))}
+                      <select value={editDiv.match_type} onChange={e => setEditDiv(p => ({ ...p, match_type: e.target.value as MatchType, team_match_format: '' }))}
                         className="glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-background outline-none focus:border-primary">
                         <option value="individual">개인전</option>
                         <option value="team">단체전</option>
                       </select>
                     </div>
+                    {editDiv.match_type === 'team' && (
+                      <div className="space-y-1 w-full sm:w-auto">
+                        <label className="text-xs text-muted-foreground">단체전 방식</label>
+                        <select value={editDiv.team_match_format} onChange={e => setEditDiv(p => ({ ...p, team_match_format: e.target.value as TeamMatchFormat | '' }))}
+                          className="glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-background outline-none focus:border-primary w-full">
+                          <option value="">-- 방식 선택 --</option>
+                          {(Object.entries(TEAM_FORMAT_LABEL) as [TeamMatchFormat, string][]).map(([val, label]) => (
+                            <option key={val} value={val}>{label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                     <div className="flex gap-1.5">
                       <button type="submit" disabled={savingDiv}
                         className="p-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-60">
@@ -297,6 +323,9 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
                     <div>
                       <span className="font-medium">{genderLabel[div.gender]} {div.name}</span>
                       <span className="text-xs text-muted-foreground ml-2">{matchTypeLabel[div.match_type]}</span>
+                      {div.match_type === 'team' && div.team_match_format && (
+                        <span className="text-xs text-accent ml-2">{TEAM_FORMAT_LABEL[div.team_match_format]}</span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <Link href={`/admin/tournaments/${id}/players?divId=${div.id}`}
@@ -342,13 +371,25 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">경기 유형</label>
-              <select value={newDiv.match_type} onChange={e => setNewDiv(p => ({ ...p, match_type: e.target.value as MatchType }))}
+              <select value={newDiv.match_type} onChange={e => setNewDiv(p => ({ ...p, match_type: e.target.value as MatchType, team_match_format: '' }))}
                 className="w-full glass border border-white/10 rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary">
                 <option value="individual">개인전</option>
                 <option value="team">단체전</option>
               </select>
             </div>
-            <div className="flex items-end gap-2">
+            {newDiv.match_type === 'team' && (
+              <div className="col-span-2 sm:col-span-4 space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">단체전 방식</label>
+                <select value={newDiv.team_match_format} onChange={e => setNewDiv(p => ({ ...p, team_match_format: e.target.value as TeamMatchFormat | '' }))}
+                  className="w-full glass border border-white/10 rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary">
+                  <option value="">-- 방식 선택 --</option>
+                  {(Object.entries(TEAM_FORMAT_LABEL) as [TeamMatchFormat, string][]).map(([val, label]) => (
+                    <option key={val} value={val}>{label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className="flex items-end gap-2 col-span-2 sm:col-span-4">
               <button type="submit" disabled={addingDiv}
                 className="flex-1 bg-primary text-primary-foreground py-2 rounded-lg text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60">
                 {addingDiv ? '...' : '추가'}

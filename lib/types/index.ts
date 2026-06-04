@@ -5,6 +5,13 @@ export type MatchType = 'individual' | 'team'
 export type PhaseType = 'preliminary' | 'main'
 export type PhaseFormat = 'round_robin' | 'single_elimination' | 'double_elimination' | 'group_knockout'
 export type MatchStatus = 'pending' | 'in_progress' | 'completed' | 'bye'
+export type TeamMatchFormat =
+  | 'olympic'             // 올림픽 공식 (3인, 복·단·단·단)
+  | 'traditional_4s1d'    // 4단 1복 (최소4인, 단·단·복·단·단)
+  | 'swaythling'          // 스웨이틀링 컵 (3명, 9전5선승)
+  | 'singles_2_doubles_1' // 2단 1복 (2-3명, 단·복·단)
+  | 'three_doubles'       // 3복식 (6명)
+  | 'three_singles'       // 3단식 (3명, 3전2선)
 
 export interface UserProfile {
   id: string
@@ -38,6 +45,7 @@ export interface Division {
   name: string
   gender: Gender
   match_type: MatchType
+  team_match_format?: TeamMatchFormat
   display_order: number
   min_participants?: number
   tournament?: Tournament
