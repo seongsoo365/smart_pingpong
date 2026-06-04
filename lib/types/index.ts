@@ -86,6 +86,7 @@ export interface Player {
   phone?: string
   seed?: number
   group_id?: string
+  confirmed: boolean
   created_at: string
   division?: Division
   group?: Group
@@ -98,6 +99,7 @@ export interface Team {
   club?: string
   seed?: number
   group_id?: string
+  confirmed: boolean
   members?: TeamMember[]
 }
 

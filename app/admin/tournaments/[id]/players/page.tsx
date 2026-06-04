@@ -1,11 +1,28 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { Plus, Trash2, ChevronLeft, Pencil, Check, X } from 'lucide-react'
+import { Plus, Trash2, ChevronLeft, Pencil, Check, X, Clock, ClipboardList, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { Division, Player } from '@/lib/types'
+
+interface ParsedRow { name: string; club: string; duplicate: boolean }
+
+function parseBulkText(text: string, existing: Player[]): ParsedRow[] {
+  const existingNames = new Set(existing.map(p => p.name.trim().toLowerCase()))
+  return text
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .map(line => {
+      const [rawName, rawClub = ''] = line.split(',')
+      const name = rawName.trim()
+      const club = rawClub.trim()
+      return { name, club, duplicate: existingNames.has(name.toLowerCase()) }
+    })
+    .filter(row => row.name.length > 0)
+}
 
 export default function PlayersPage() {
   const { id } = useParams<{ id: string }>()
@@ -21,7 +38,12 @@ export default function PlayersPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [editClub, setEditClub] = useState('')
+  const [showBulk, setShowBulk] = useState(false)
+  const [bulkText, setBulkText] = useState('')
+  const [bulkLoading, setBulkLoading] = useState(false)
   const supabase = createClient()
+
+  const parsedRows = useMemo(() => parseBulkText(bulkText, players), [bulkText, players])
 
   useEffect(() => {
     supabase.from('divisions').select('*').eq('tournament_id', id).order('display_order')
@@ -43,12 +65,19 @@ export default function PlayersPage() {
     setLoading(true)
     const { data, error } = await supabase
       .from('players')
-      .insert({ division_id: selectedDivId, name: newName.trim(), club: newClub.trim() || null })
+      .insert({ division_id: selectedDivId, name: newName.trim(), club: newClub.trim() || null, confirmed: true })
       .select()
       .single()
     if (error) { toast.error('추가 실패: ' + error.message) }
     else { setPlayers(prev => [...prev, data]); setNewName(''); setNewClub('') }
     setLoading(false)
+  }
+
+  async function confirmPlayer(playerId: string) {
+    const { data, error } = await supabase.from('players').update({ confirmed: true }).eq('id', playerId).select().single()
+    if (error) { toast.error('승인 실패'); return }
+    setPlayers(prev => prev.map(p => p.id === playerId ? data : p))
+    toast.success('선수를 승인했습니다')
   }
 
   async function removePlayer(playerId: string) {
@@ -76,6 +105,24 @@ export default function PlayersPage() {
     setPlayers(prev => prev.map(p => p.id === editingId ? data : p))
     setEditingId(null)
     toast.success('선수 정보가 수정되었습니다')
+  }
+
+  async function addBulk() {
+    const rows = parsedRows.filter(r => !r.duplicate)
+    if (rows.length === 0) { toast.error('등록할 선수가 없습니다'); return }
+    setBulkLoading(true)
+    const { data, error } = await supabase
+      .from('players')
+      .insert(rows.map(r => ({ division_id: selectedDivId, name: r.name, club: r.club || null, confirmed: true })))
+      .select()
+    if (error) { toast.error('일괄 등록 실패: ' + error.message) }
+    else {
+      setPlayers(prev => [...prev, ...(data ?? [])])
+      setBulkText('')
+      setShowBulk(false)
+      toast.success(`${data?.length ?? 0}명을 등록했습니다`)
+    }
+    setBulkLoading(false)
   }
 
   async function updateSeed(playerId: string, seed: number) {
@@ -150,21 +197,37 @@ export default function PlayersPage() {
                       <div className="flex items-center gap-3">
                         <span className="text-muted-foreground text-sm w-5 shrink-0">{i + 1}</span>
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium">{p.name}</div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{p.name}</span>
+                            {!p.confirmed && (
+                              <span className="inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full bg-accent/20 text-accent">
+                                <Clock className="w-2.5 h-2.5" /> 미승인
+                              </span>
+                            )}
+                          </div>
                           {p.club && <div className="text-xs text-muted-foreground">{p.club}</div>}
+                          {p.phone && <div className="text-xs text-muted-foreground">{p.phone}</div>}
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <div className="flex items-center gap-1">
-                            <span className="text-xs text-muted-foreground">시드</span>
-                            <input
-                              type="number"
-                              min={1}
-                              defaultValue={p.seed ?? ''}
-                              onBlur={e => updateSeed(p.id, Number(e.target.value))}
-                              className="w-12 glass border border-white/10 rounded-lg px-2 py-1 text-xs text-center bg-transparent outline-none focus:border-primary"
-                              placeholder="-"
-                            />
-                          </div>
+                          {!p.confirmed && (
+                            <button onClick={() => confirmPlayer(p.id)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:bg-primary/90 transition-colors">
+                              <Check className="w-3 h-3" /> 승인
+                            </button>
+                          )}
+                          {p.confirmed && (
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-muted-foreground">시드</span>
+                              <input
+                                type="number"
+                                min={1}
+                                defaultValue={p.seed ?? ''}
+                                onBlur={e => updateSeed(p.id, Number(e.target.value))}
+                                className="w-12 glass border border-white/10 rounded-lg px-2 py-1 text-xs text-center bg-transparent outline-none focus:border-primary"
+                                placeholder="-"
+                              />
+                            </div>
+                          )}
                           <button onClick={() => startEdit(p)}
                             className="p-1 text-muted-foreground hover:text-primary transition-colors">
                             <Pencil className="w-3.5 h-3.5" />
@@ -210,6 +273,80 @@ export default function PlayersPage() {
               </button>
             </div>
           </form>
+
+          {/* Bulk registration */}
+          <div className="glass rounded-2xl border border-white/10 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowBulk(v => !v)}
+              className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/5 transition-colors"
+            >
+              <span className="flex items-center gap-2 font-semibold text-sm">
+                <ClipboardList className="w-4 h-4 text-primary" />
+                일괄 등록
+                <span className="text-xs text-muted-foreground font-normal">이름,소속 형식으로 여러 명 한 번에 등록</span>
+              </span>
+              {showBulk ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+            </button>
+
+            {showBulk && (
+              <div className="px-5 pb-5 space-y-4 border-t border-white/10 pt-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">
+                    한 줄에 한 명씩 입력 — <code className="bg-white/10 px-1 rounded">이름,소속</code> 또는 <code className="bg-white/10 px-1 rounded">이름</code>
+                  </label>
+                  <textarea
+                    value={bulkText}
+                    onChange={e => setBulkText(e.target.value)}
+                    rows={6}
+                    placeholder={"홍길동,한국탁구클럽\n김철수\n이영희,서울FC\n박민준,부산탁구"}
+                    className="w-full glass border border-white/10 rounded-xl px-4 py-3 text-sm bg-transparent outline-none focus:border-primary resize-y font-mono"
+                  />
+                </div>
+
+                {parsedRows.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-xs text-muted-foreground">
+                      미리보기 — 총 {parsedRows.length}명
+                      {parsedRows.some(r => r.duplicate) && (
+                        <span className="text-accent ml-2">
+                          (중복 {parsedRows.filter(r => r.duplicate).length}명 제외)
+                        </span>
+                      )}
+                    </p>
+                    <div className="space-y-1 max-h-48 overflow-y-auto">
+                      {parsedRows.map((row, i) => (
+                        <div key={i} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${row.duplicate ? 'bg-accent/10 text-muted-foreground line-through' : 'bg-white/5'}`}>
+                          {row.duplicate && <AlertTriangle className="w-3.5 h-3.5 text-accent shrink-0" />}
+                          <span className="font-medium">{row.name}</span>
+                          {row.club && <span className="text-muted-foreground">{row.club}</span>}
+                          {row.duplicate && <span className="text-xs text-accent ml-auto">중복</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={addBulk}
+                    disabled={bulkLoading || parsedRows.filter(r => !r.duplicate).length === 0}
+                    className="flex-1 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60"
+                  >
+                    {bulkLoading ? '등록 중...' : `${parsedRows.filter(r => !r.duplicate).length}명 등록`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setBulkText(''); setShowBulk(false) }}
+                    className="px-4 glass border border-white/10 rounded-xl text-sm hover:bg-white/10 transition-colors"
+                  >
+                    취소
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </>
       )}
     </div>

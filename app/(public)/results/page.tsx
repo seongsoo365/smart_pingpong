@@ -23,7 +23,8 @@ export default async function ResultsPage({
     tournaments = data ?? []
   }
 
-  const years = Array.from({ length: 5 }, (_, i) => 2026 + i)
+  const currentYear = new Date().getFullYear()
+  const years = Array.from({ length: 5 }, (_, i) => currentYear - i)
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">

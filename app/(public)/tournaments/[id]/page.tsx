@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { Calendar, MapPin, ChevronRight } from 'lucide-react'
+import { Calendar, MapPin, ChevronRight, ClipboardList } from 'lucide-react'
 import { createClientSafe } from '@/lib/supabase/server'
 import { cn } from '@/lib/utils'
 import type { Division } from '@/lib/types'
@@ -52,6 +52,12 @@ export default async function TournamentDetailPage({
             <p className="text-xs text-muted-foreground">
               접수 기간: {tournament.registration_start} ~ {tournament.registration_end}
             </p>
+          )}
+          {tournament.status === 'registration' && (
+            <Link href={`/tournaments/${id}/register`}
+              className="inline-flex items-center gap-2 mt-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors">
+              <ClipboardList className="w-4 h-4" /> 참가 신청하기
+            </Link>
           )}
         </div>
       </div>

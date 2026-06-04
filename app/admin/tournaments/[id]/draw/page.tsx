@@ -33,7 +33,7 @@ export default function DrawPage() {
   useEffect(() => {
     if (!selectedDivId) return
     Promise.all([
-      supabase.from('players').select('*').eq('division_id', selectedDivId).order('seed', { nullsFirst: false }),
+      supabase.from('players').select('*').eq('division_id', selectedDivId).eq('confirmed', true).order('seed', { nullsFirst: false }),
       supabase.from('tournament_phases').select('*').eq('division_id', selectedDivId).order('phase_order'),
     ]).then(([{ data: p }, { data: ph }]) => {
       setPlayers(p ?? [])
@@ -47,6 +47,12 @@ export default function DrawPage() {
   async function generateDraw() {
     if (!main) { toast.error('본선 단계가 없습니다'); return }
     if (players.length < 2) { toast.error('선수를 최소 2명 이상 등록하세요'); return }
+
+    // BUG-02: warn before overwriting completed results
+    const { data: existingMatches } = await supabase.from('matches').select('status').eq('phase_id', main.id)
+    if (existingMatches?.some(m => m.status === 'completed')) {
+      if (!confirm('입력된 경기 결과가 있습니다. 대진표를 재생성하면 모든 결과가 삭제됩니다. 계속하시겠습니까?')) return
+    }
 
     setLoading(true)
 
@@ -117,7 +123,9 @@ export default function DrawPage() {
       }
     } else {
       // Direct bracket (no preliminary) — create ALL rounds, propagate bye winners
-      const seeded = players.map(p => p.id)
+      const seeded = [...players]
+        .sort((a, b) => (a.seed ?? 9999) - (b.seed ?? 9999))
+        .map(p => p.id)
       const bracket = generateSeededBracket(seeded)
       const totalRounds = getBracketRounds(players.length)
       const slots = nextPowerOfTwo(players.length)
