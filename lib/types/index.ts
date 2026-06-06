@@ -48,6 +48,7 @@ export interface Division {
   team_match_format?: TeamMatchFormat
   display_order: number
   min_participants?: number
+  max_teams?: number
   tournament?: Tournament
 }
 
@@ -100,6 +101,7 @@ export interface Team {
   seed?: number
   group_id?: string
   confirmed: boolean
+  created_at?: string
   members?: TeamMember[]
 }
 

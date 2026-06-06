@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, Check, Trash2, CheckCheck, Users } from 'lucide-react'
+import { ChevronLeft, Check, Trash2, CheckCheck, Users, Clock, ShieldCheck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { Division, Player, Team, TeamMember } from '@/lib/types'
@@ -9,7 +9,7 @@ import type { Division, Player, Team, TeamMember } from '@/lib/types'
 const genderLabel: Record<string, string> = { male: '남자', female: '여자', mixed: '혼합' }
 
 interface PendingPlayer extends Player { division?: Division }
-interface PendingTeam extends Team { division?: Division; members: TeamMember[] }
+interface PendingTeam extends Team { division?: Division; members: TeamMember[]; created_at: string }
 
 export default function RegistrationsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -18,6 +18,8 @@ export default function RegistrationsPage({ params }: { params: Promise<{ id: st
   const [divisions, setDivisions] = useState<Division[]>([])
   const [pendingPlayers, setPendingPlayers] = useState<PendingPlayer[]>([])
   const [pendingTeams, setPendingTeams] = useState<PendingTeam[]>([])
+  // 부수별 승인된 팀 수
+  const [approvedTeamCounts, setApprovedTeamCounts] = useState<Record<string, number>>({})
   const [selectedDivId, setSelectedDivId] = useState('all')
   const [loading, setLoading] = useState(true)
 
@@ -27,24 +29,35 @@ export default function RegistrationsPage({ params }: { params: Promise<{ id: st
       .from('divisions').select('*').eq('tournament_id', id).order('display_order')
     if (!divs?.length) { setLoading(false); return }
 
-    const divIds = divs.map(d => d.id)
     const divMap = new Map(divs.map(d => [d.id, d]))
-
     const individualDivIds = divs.filter(d => d.match_type === 'individual').map(d => d.id)
     const teamDivIds = divs.filter(d => d.match_type === 'team').map(d => d.id)
 
-    const [{ data: players }, { data: teams }] = await Promise.all([
+    const [{ data: players }, { data: pendingTeamsData }, { data: approvedTeamsData }] = await Promise.all([
       individualDivIds.length > 0
         ? supabase.from('players').select('*').in('division_id', individualDivIds).eq('confirmed', false).order('created_at')
         : Promise.resolve({ data: [] as Player[] }),
       teamDivIds.length > 0
-        ? supabase.from('teams').select('*, members:team_members(*)').in('division_id', teamDivIds).eq('confirmed', false).order('created_at' as never)
+        ? supabase.from('teams').select('*, members:team_members(*)').in('division_id', teamDivIds).eq('confirmed', false).order('created_at')
         : Promise.resolve({ data: [] as (Team & { members: TeamMember[] })[] }),
+      teamDivIds.length > 0
+        ? supabase.from('teams').select('division_id').in('division_id', teamDivIds).eq('confirmed', true)
+        : Promise.resolve({ data: [] as { division_id: string }[] }),
     ])
+
+    // 부수별 승인 팀 수 집계
+    const counts: Record<string, number> = {}
+    for (const t of approvedTeamsData ?? []) {
+      counts[t.division_id] = (counts[t.division_id] ?? 0) + 1
+    }
 
     setDivisions(divs)
     setPendingPlayers((players ?? []).map(p => ({ ...p, division: divMap.get(p.division_id) })))
-    setPendingTeams((teams ?? []).map(t => ({ ...t, division: divMap.get(t.division_id), members: (t as any).members ?? [] })))
+    setPendingTeams(
+      ((pendingTeamsData ?? []) as (Team & { members: TeamMember[]; created_at: string })[])
+        .map(t => ({ ...t, division: divMap.get(t.division_id), members: (t as any).members ?? [] }))
+    )
+    setApprovedTeamCounts(counts)
     setLoading(false)
   }
 
@@ -80,9 +93,16 @@ export default function RegistrationsPage({ params }: { params: Promise<{ id: st
 
   // --- Team actions ---
   async function approveTeam(t: PendingTeam) {
+    const div = divisions.find(d => d.id === t.division_id)
+    const approved = approvedTeamCounts[t.division_id] ?? 0
+    if (div?.max_teams && approved >= div.max_teams) {
+      toast.error(`이미 최대 참가팀(${div.max_teams}팀)에 도달했습니다`)
+      return
+    }
     const { error } = await supabase.from('teams').update({ confirmed: true }).eq('id', t.id)
     if (error) { toast.error('승인 실패: ' + error.message); return }
     setPendingTeams(prev => prev.filter(x => x.id !== t.id))
+    setApprovedTeamCounts(prev => ({ ...prev, [t.division_id]: (prev[t.division_id] ?? 0) + 1 }))
     toast.success(`${t.name} 팀을 승인했습니다`)
   }
 
@@ -94,19 +114,33 @@ export default function RegistrationsPage({ params }: { params: Promise<{ id: st
     toast.success(`${t.name} 팀 신청을 거절했습니다`)
   }
 
-  async function approveAllTeams(divId: string) {
-    const targets = pendingTeams.filter(t => t.division_id === divId)
-    if (!targets.length || !confirm(`${targets.length}팀을 모두 승인하시겠습니까?`)) return
-    const ids = targets.map(t => t.id)
+  // 시간순 1팀씩 승인 (신청이 가장 이른 팀 → 빈 슬롯만큼)
+  async function approveOldestTeams(divId: string) {
+    const div = divisions.find(d => d.id === divId)
+    const queue = pendingTeams.filter(t => t.division_id === divId) // 이미 created_at 오름차순
+    if (!queue.length) return
+
+    const approved = approvedTeamCounts[divId] ?? 0
+    const available = div?.max_teams ? div.max_teams - approved : queue.length
+    if (available <= 0) { toast.error('이미 최대 참가팀에 도달했습니다'); return }
+
+    const toApprove = queue.slice(0, available)
+    if (!confirm(`신청 시간 순으로 ${toApprove.length}팀을 승인하시겠습니까?`)) return
+
+    const ids = toApprove.map(t => t.id)
     const { error } = await supabase.from('teams').update({ confirmed: true }).in('id', ids)
     if (error) { toast.error('일괄 승인 실패'); return }
     setPendingTeams(prev => prev.filter(t => !ids.includes(t.id)))
-    toast.success(`${targets.length}팀을 일괄 승인했습니다`)
+    setApprovedTeamCounts(prev => ({ ...prev, [divId]: (prev[divId] ?? 0) + toApprove.length }))
+    toast.success(`${toApprove.length}팀을 시간순으로 승인했습니다`)
   }
 
-  // filtered views
   const filteredPlayers = selectedDivId === 'all' ? pendingPlayers : pendingPlayers.filter(p => p.division_id === selectedDivId)
   const filteredTeams   = selectedDivId === 'all' ? pendingTeams  : pendingTeams.filter(t => t.division_id === selectedDivId)
+
+  function formatTime(iso: string) {
+    return new Date(iso).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  }
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -172,7 +206,7 @@ export default function RegistrationsPage({ params }: { params: Promise<{ id: st
                         <div className="text-xs text-muted-foreground space-x-2">
                           {p.club && <span>{p.club}</span>}
                           {p.phone && <span>{p.phone}</span>}
-                          <span className="text-white/20">{new Date(p.created_at).toLocaleDateString('ko-KR')}</span>
+                          <span className="text-white/30">{new Date(p.created_at).toLocaleDateString('ko-KR')}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
@@ -196,46 +230,77 @@ export default function RegistrationsPage({ params }: { params: Promise<{ id: st
           {divisions.filter(d => d.match_type === 'team').map(div => {
             const teams = filteredTeams.filter(t => t.division_id === div.id)
             if (!teams.length) return null
+            const approved = approvedTeamCounts[div.id] ?? 0
+            const max = div.max_teams
+            const slotsLeft = max ? max - approved : null
+            const isFull = slotsLeft !== null && slotsLeft <= 0
             return (
               <section key={div.id} className="glass rounded-2xl p-5 border border-white/10 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h2 className="font-semibold">
-                    {genderLabel[div.gender]} {div.name}
-                    <span className="text-muted-foreground font-normal text-sm ml-2">{teams.length}팀 대기</span>
-                  </h2>
-                  <button onClick={() => approveAllTeams(div.id)}
-                    className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline">
-                    <CheckCheck className="w-3.5 h-3.5" /> 전체 승인
-                  </button>
+                {/* Header */}
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h2 className="font-semibold">
+                      {genderLabel[div.gender]} {div.name}
+                    </h2>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <ShieldCheck className="w-3.5 h-3.5 text-primary" />
+                        승인 {approved}{max ? `/${max}` : ''}팀
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-accent" />
+                        대기 {teams.length}팀
+                      </span>
+                      {isFull && (
+                        <span className="px-1.5 py-0.5 rounded-full bg-destructive/20 text-destructive text-xs">마감</span>
+                      )}
+                    </div>
+                  </div>
+                  {!isFull && (
+                    <button onClick={() => approveOldestTeams(div.id)}
+                      className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline shrink-0">
+                      <Clock className="w-3.5 h-3.5" />
+                      시간순 승인{slotsLeft !== null ? ` (${slotsLeft}팀)` : ''}
+                    </button>
+                  )}
                 </div>
+
+                {/* Pending queue — 신청 시간 오름차순 */}
                 <div className="space-y-2">
-                  {teams.map(t => (
-                    <div key={t.id} className="rounded-xl bg-white/5 px-4 py-3 space-y-2">
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <Users className="w-3.5 h-3.5 text-primary shrink-0" />
-                            <span className="font-medium">{t.name}</span>
-                            {t.club && <span className="text-xs text-muted-foreground">{t.club}</span>}
+                  {teams.map((t, idx) => {
+                    const canApprove = !isFull || (slotsLeft !== null && slotsLeft > 0)
+                    return (
+                      <div key={t.id} className="rounded-xl bg-white/5 px-4 py-3 space-y-1.5">
+                        <div className="flex items-center gap-3">
+                          <span className="text-muted-foreground text-xs w-5 shrink-0 text-right">{idx + 1}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <Users className="w-3.5 h-3.5 text-primary shrink-0" />
+                              <span className="font-medium">{t.name}</span>
+                              {t.club && <span className="text-xs text-muted-foreground">{t.club}</span>}
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-0.5 pl-5">
+                              {[...(t.members)].sort((a, b) => a.player_order - b.player_order).map(m => m.player_name).join(' · ')}
+                              <span className="ml-1.5 text-white/30">({t.members.length}명)</span>
+                            </div>
+                            <div className="text-xs text-white/30 mt-0.5 pl-5 flex items-center gap-1">
+                              <Clock className="w-3 h-3" /> {formatTime(t.created_at)}
+                            </div>
                           </div>
-                          <div className="text-xs text-muted-foreground mt-0.5 pl-5">
-                            {t.members.sort((a, b) => a.player_order - b.player_order).map(m => m.player_name).join(' · ')}
-                            <span className="ml-2 text-white/20">({t.members.length}명)</span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button onClick={() => approveTeam(t)} disabled={!canApprove}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                              <Check className="w-3 h-3" /> 승인
+                            </button>
+                            <button onClick={() => rejectTeam(t)}
+                              className="p-1.5 text-muted-foreground hover:text-destructive transition-colors">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button onClick={() => approveTeam(t)}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:bg-primary/90 transition-colors">
-                            <Check className="w-3 h-3" /> 승인
-                          </button>
-                          <button onClick={() => rejectTeam(t)}
-                            className="p-1.5 text-muted-foreground hover:text-destructive transition-colors">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </section>
             )

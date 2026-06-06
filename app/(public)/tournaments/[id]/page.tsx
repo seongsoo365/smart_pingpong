@@ -1,14 +1,20 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { Calendar, MapPin, ChevronRight, ClipboardList } from 'lucide-react'
+import { Calendar, MapPin, ChevronRight, ClipboardList, Users, Clock, ShieldCheck } from 'lucide-react'
 import { createClientSafe } from '@/lib/supabase/server'
 import { cn } from '@/lib/utils'
-import type { Division } from '@/lib/types'
+import type { Division, Team, TeamMember } from '@/lib/types'
 
 const genderLabel: Record<string, string> = { male: '남자', female: '여자', mixed: '혼합' }
 const matchTypeLabel: Record<string, string> = { individual: '개인전', team: '단체전' }
 const statusLabel: Record<string, string> = {
   draft: '준비 중', registration: '접수 중', in_progress: '진행 중', completed: '종료',
+}
+
+interface TeamWithMembers extends Team { members: TeamMember[]; created_at?: string }
+interface DivisionWithTeams extends Division {
+  approvedTeams: TeamWithMembers[]
+  pendingTeams: TeamWithMembers[]
 }
 
 export default async function TournamentDetailPage({
@@ -28,6 +34,27 @@ export default async function TournamentDetailPage({
     supabase.from('divisions').select('*').eq('tournament_id', id).order('display_order'),
     supabase.from('division_merges').select('*').eq('tournament_id', id),
   ])
+
+  const teamDivisions = (divisions ?? []).filter((d: Division) => d.match_type === 'team')
+  let teamDivisionsWithTeams: DivisionWithTeams[] = []
+  if (teamDivisions.length > 0) {
+    const teamDivIds = teamDivisions.map((d: Division) => d.id)
+    const { data: allTeams } = await supabase
+      .from('teams')
+      .select('*, members:team_members(*)')
+      .in('division_id', teamDivIds)
+      .order('created_at')
+    const teamsData = (allTeams ?? []) as TeamWithMembers[]
+    teamDivisionsWithTeams = teamDivisions.map((div: Division) => {
+      const divTeams = teamsData.filter(t => t.division_id === div.id)
+        .map(t => ({ ...t, members: [...(t.members ?? [])].sort((a, b) => a.player_order - b.player_order) }))
+      return {
+        ...div,
+        approvedTeams: divTeams.filter(t => t.confirmed),
+        pendingTeams: divTeams.filter(t => !t.confirmed),
+      }
+    })
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
@@ -67,6 +94,101 @@ export default async function TournamentDetailPage({
           <p className="text-sm font-medium text-accent mb-2">통합 부수 안내</p>
           {merges?.map(m => <p key={m.id} className="text-sm text-muted-foreground">{m.name}</p>)}
         </div>
+      )}
+
+      {teamDivisionsWithTeams.length > 0 && (
+        <section>
+          <h2 className="text-lg font-bold mb-4">참가 팀 현황</h2>
+          <div className="space-y-4">
+            {teamDivisionsWithTeams.map(div => {
+              const max = div.max_teams
+              const approved = div.approvedTeams.length
+              const pending = div.pendingTeams.length
+              const isFull = max !== null && max !== undefined && approved >= max
+              return (
+                <div key={div.id} className="glass rounded-2xl border border-white/10 overflow-hidden">
+                  {/* Header */}
+                  <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 bg-white/5">
+                    <span className="font-semibold text-sm">
+                      {genderLabel[div.gender]} {div.name}
+                    </span>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <ShieldCheck className="w-3.5 h-3.5 text-primary" />
+                        승인 {approved}{max ? `/${max}` : ''}팀
+                      </span>
+                      {pending > 0 && (
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 text-accent" />
+                          대기 {pending}팀
+                        </span>
+                      )}
+                      {isFull && (
+                        <span className="px-1.5 py-0.5 rounded-full bg-destructive/20 text-destructive">마감</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Approved teams */}
+                  {div.approvedTeams.length > 0 ? (
+                    <div className="divide-y divide-white/5">
+                      {div.approvedTeams.map((team, i) => (
+                        <details key={team.id} className="group">
+                          <summary className="flex items-center gap-3 px-5 py-3 cursor-pointer hover:bg-white/5 transition-colors list-none">
+                            <span className="text-muted-foreground text-sm w-5 shrink-0 text-right">{i + 1}</span>
+                            <div className="flex-1 min-w-0">
+                              <span className="font-medium">{team.name}</span>
+                              {team.club && <span className="text-xs text-muted-foreground ml-2">{team.club}</span>}
+                            </div>
+                            <span className="text-xs text-muted-foreground shrink-0">
+                              {team.members.length}명
+                              <ChevronRight className="w-3.5 h-3.5 inline ml-1 transition-transform group-open:rotate-90" />
+                            </span>
+                          </summary>
+                          <div className="px-5 pb-3 pt-1 space-y-1 bg-white/[0.02]">
+                            {team.members.map(m => (
+                              <div key={m.id} className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <span className="w-4 text-right text-xs shrink-0">{m.player_order}</span>
+                                <span className="text-foreground/80">{m.player_name}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-5">아직 승인된 팀이 없습니다.</p>
+                  )}
+
+                  {/* Pending waiting queue */}
+                  {div.pendingTeams.length > 0 && (
+                    <div className="border-t border-white/10">
+                      <div className="px-5 py-2 bg-accent/5">
+                        <span className="text-xs font-medium text-accent flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5" /> 대기 순번
+                        </span>
+                      </div>
+                      <div className="divide-y divide-white/5">
+                        {div.pendingTeams.map((team, i) => (
+                          <div key={team.id} className="flex items-center gap-3 px-5 py-3">
+                            <span className="text-accent text-xs w-5 shrink-0 text-right font-medium">{i + 1}</span>
+                            <div className="flex-1 min-w-0">
+                              <span className="text-muted-foreground">{team.name}</span>
+                              {team.club && <span className="text-xs text-muted-foreground/60 ml-2">{team.club}</span>}
+                            </div>
+                            <span className="text-xs text-muted-foreground/50 shrink-0">
+                              <Users className="w-3 h-3 inline mr-0.5" />{team.members.length}명
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </section>
       )}
 
       <section>

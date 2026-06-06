@@ -18,9 +18,9 @@ const TEAM_FORMAT_LABEL: Record<TeamMatchFormat, string> = {
   three_singles: '3단식 — 3명, 3전2선(단·단·단)',
 }
 
-interface DivisionForm { name: string; gender: Gender; match_type: MatchType; team_match_format: TeamMatchFormat | '' }
+interface DivisionForm { name: string; gender: Gender; match_type: MatchType; team_match_format: TeamMatchFormat | ''; max_teams: number | '' }
 type NewDivisionForm = DivisionForm
-const defaultNewDiv = (): DivisionForm => ({ name: '', gender: 'male', match_type: 'individual', team_match_format: '' })
+const defaultNewDiv = (): DivisionForm => ({ name: '', gender: 'male', match_type: 'individual', team_match_format: '', max_teams: '' })
 
 export default function TournamentEditPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -98,6 +98,7 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
         tournament_id: id,
         ...newDiv,
         team_match_format: newDiv.team_match_format || null,
+        max_teams: newDiv.max_teams !== '' ? Number(newDiv.max_teams) : null,
         display_order: divisions.length,
       }),
     })
@@ -116,7 +117,7 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
 
   function startEditDiv(div: Division) {
     setEditingDivId(div.id)
-    setEditDiv({ name: div.name, gender: div.gender, match_type: div.match_type, team_match_format: div.team_match_format ?? '' })
+    setEditDiv({ name: div.name, gender: div.gender, match_type: div.match_type, team_match_format: div.team_match_format ?? '', max_teams: div.max_teams ?? '' })
   }
 
   async function handleSaveDivision(e: React.FormEvent) {
@@ -126,7 +127,7 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
     const res = await fetch(`/api/divisions/${editingDivId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...editDiv, team_match_format: editDiv.team_match_format || null }),
+      body: JSON.stringify({ ...editDiv, team_match_format: editDiv.team_match_format || null, max_teams: editDiv.max_teams !== '' ? Number(editDiv.max_teams) : null }),
     })
     if (res.ok) {
       const updated = await res.json()
@@ -297,16 +298,26 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
                       </select>
                     </div>
                     {editDiv.match_type === 'team' && (
-                      <div className="space-y-1 w-full sm:w-auto">
-                        <label className="text-xs text-muted-foreground">단체전 방식</label>
-                        <select value={editDiv.team_match_format} onChange={e => setEditDiv(p => ({ ...p, team_match_format: e.target.value as TeamMatchFormat | '' }))}
-                          className="glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-background outline-none focus:border-primary w-full">
-                          <option value="">-- 방식 선택 --</option>
-                          {(Object.entries(TEAM_FORMAT_LABEL) as [TeamMatchFormat, string][]).map(([val, label]) => (
-                            <option key={val} value={val}>{label}</option>
-                          ))}
-                        </select>
-                      </div>
+                      <>
+                        <div className="space-y-1 w-full sm:w-auto">
+                          <label className="text-xs text-muted-foreground">단체전 방식</label>
+                          <select value={editDiv.team_match_format} onChange={e => setEditDiv(p => ({ ...p, team_match_format: e.target.value as TeamMatchFormat | '' }))}
+                            className="glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-background outline-none focus:border-primary w-full">
+                            <option value="">-- 방식 선택 --</option>
+                            {(Object.entries(TEAM_FORMAT_LABEL) as [TeamMatchFormat, string][]).map(([val, label]) => (
+                              <option key={val} value={val}>{label}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">최대 참가팀</label>
+                          <input
+                            type="number" min={1} placeholder="제한 없음"
+                            value={editDiv.max_teams}
+                            onChange={e => setEditDiv(p => ({ ...p, max_teams: e.target.value === '' ? '' : Number(e.target.value) }))}
+                            className="w-24 glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary" />
+                        </div>
+                      </>
                     )}
                     <div className="flex gap-1.5">
                       <button type="submit" disabled={savingDiv}
@@ -326,6 +337,9 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
                       <span className="text-xs text-muted-foreground ml-2">{matchTypeLabel[div.match_type]}</span>
                       {div.match_type === 'team' && div.team_match_format && (
                         <span className="text-xs text-accent ml-2">{TEAM_FORMAT_LABEL[div.team_match_format]}</span>
+                      )}
+                      {div.match_type === 'team' && div.max_teams && (
+                        <span className="text-xs text-muted-foreground ml-2">최대 {div.max_teams}팀</span>
                       )}
                     </div>
                     <div className="flex items-center gap-2">
@@ -379,16 +393,26 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
               </select>
             </div>
             {newDiv.match_type === 'team' && (
-              <div className="col-span-2 sm:col-span-4 space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">단체전 방식</label>
-                <select value={newDiv.team_match_format} onChange={e => setNewDiv(p => ({ ...p, team_match_format: e.target.value as TeamMatchFormat | '' }))}
-                  className="w-full glass border border-white/10 rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary">
-                  <option value="">-- 방식 선택 --</option>
-                  {(Object.entries(TEAM_FORMAT_LABEL) as [TeamMatchFormat, string][]).map(([val, label]) => (
-                    <option key={val} value={val}>{label}</option>
-                  ))}
-                </select>
-              </div>
+              <>
+                <div className="col-span-2 sm:col-span-3 space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">단체전 방식</label>
+                  <select value={newDiv.team_match_format} onChange={e => setNewDiv(p => ({ ...p, team_match_format: e.target.value as TeamMatchFormat | '' }))}
+                    className="w-full glass border border-white/10 rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary">
+                    <option value="">-- 방식 선택 --</option>
+                    {(Object.entries(TEAM_FORMAT_LABEL) as [TeamMatchFormat, string][]).map(([val, label]) => (
+                      <option key={val} value={val}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">최대 참가팀</label>
+                  <input
+                    type="number" min={1} placeholder="제한 없음"
+                    value={newDiv.max_teams}
+                    onChange={e => setNewDiv(p => ({ ...p, max_teams: e.target.value === '' ? '' : Number(e.target.value) }))}
+                    className="w-full glass border border-white/10 rounded-lg px-3 py-2 text-sm bg-transparent outline-none focus:border-primary" />
+                </div>
+              </>
             )}
             <div className="flex items-end gap-2 col-span-2 sm:col-span-4">
               <button type="submit" disabled={addingDiv}

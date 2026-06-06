@@ -77,10 +77,13 @@ API 라우트는 수동으로 소유권을 확인합니다 — 관리자 라우�
 
 ```
 tournament (대회)
-  └─ division (부수, 1:N)
+  └─ division (부수, 1:N)  ← match_type: 'individual' | 'team'
+       ├─ [개인전] player (선수, 1:N, player.division_id)
+       ├─ [단체전] team (팀, 1:N, team.division_id)
+       │    └─ team_member (팀원, 1:N, team_member.team_id)
        └─ tournament_phase (단계, 1:N, phase_type: 'preliminary'예선 | 'main'본선)
             ├─ group (조, 1:N, 리그 풀)
-            │    └─ player  (player.group_id로 배정)
+            │    └─ player / team  (group_id로 배정)
             └─ match (경기, 1:N, round + match_number로 위치 식별)
                   └─ match_set (세트별 점수)
 ```
@@ -89,7 +92,13 @@ tournament (대회)
 
 ### 관리자 대회 운영 흐름
 
-대회 생성 → 부수 추가(추첨 전에 각 부수에 `tournament_phase` 행 필요) → 부수별 선수 등록 → 대진표 생성 → 결과 입력.
+대회 생성 → 부수 추가(추첨 전에 각 부수에 `tournament_phase` 행 필요) → 부수별 선수/팀 등록 → 대진표 생성 → 결과 입력.
+
+**개인전/단체전 등록 분기** (`app/admin/tournaments/[id]/players/page.tsx`):
+- `division.match_type === 'individual'`이면 `players` 테이블 CRUD (선수 목록, 개별 추가, 일괄 등록, 시드)
+- `division.match_type === 'team'`이면 `teams` + `team_members` 테이블 CRUD (팀 목록, 팀 추가, 팀원 수정, 시드)
+- 팀원 수 제약은 `division.team_match_format`을 `TEAM_SIZE` 맵으로 조회하여 min/max 적용
+- 부수 탭 버튼에 "단체" 레이블을 표시해 구분
 
 `tournament_phases`는 `format`(round_robin / single_elimination), `games_per_match`, `points_per_game`, `advancement_count`를 정의합니다. 대진 페이지에서 브라켓을 생성하려면 이 값들이 미리 존재해야 합니다.
 

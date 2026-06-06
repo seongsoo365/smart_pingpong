@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: '인증 필요' }, { status: 401 })
 
   const body = await req.json()
-  const { tournament_id, name, gender, match_type, team_match_format, display_order } = body
+  const { tournament_id, name, gender, match_type, team_match_format, display_order, max_teams } = body
 
   if (!tournament_id || !name) return NextResponse.json({ error: '필수 항목 누락' }, { status: 400 })
   if (!await canManageTournament(supabase, tournament_id, user.id))
@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
       match_type: match_type ?? 'individual',
       team_match_format: team_match_format ?? null,
       display_order: display_order ?? 0,
+      max_teams: max_teams ?? null,
     })
     .select()
     .single()
