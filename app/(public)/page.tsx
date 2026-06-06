@@ -16,6 +16,7 @@ export default async function HomePage() {
       supabase.from('tournaments').select('*').in('status', ['registration', 'in_progress'])
         .order('start_date', { ascending: true }).limit(6),
       supabase.from('tournaments').select('*').eq('status', 'completed')
+        .gte('end_date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10))
         .order('end_date', { ascending: false }).limit(4),
       supabase.from('tournaments').select('*').eq('status', 'draft')
         .order('start_date', { ascending: true, nullsFirst: false }).limit(6),

@@ -9,7 +9,10 @@ export default async function ResultsPage({
 }) {
   const sp = await searchParams
   const q = sp.q
-  const year = sp.year
+  const currentYear = new Date().getFullYear()
+  // year 파라미터 없으면 올해를 기본값으로 사용
+  const year = sp.year ?? String(currentYear)
+  const isAllYears = sp.year === 'all'
 
   const supabase = await createClientSafe()
   let tournaments: Tournament[] = []
@@ -18,12 +21,11 @@ export default async function ResultsPage({
     let query = supabase.from('tournaments').select('*').eq('status', 'completed')
       .order('end_date', { ascending: false })
     if (q) query = query.ilike('name', `%${q}%`)
-    if (year) query = query.gte('start_date', `${year}-01-01`).lte('start_date', `${year}-12-31`)
+    if (!isAllYears) query = query.gte('start_date', `${year}-01-01`).lte('start_date', `${year}-12-31`)
     const { data } = await query.limit(50)
     tournaments = data ?? []
   }
 
-  const currentYear = new Date().getFullYear()
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i)
 
   return (
@@ -42,18 +44,21 @@ export default async function ResultsPage({
           {years.map(y => (
             <a key={y} href={`/results?year=${y}${q ? `&q=${q}` : ''}`}
               className={`px-3 py-2 rounded-xl text-xs font-medium transition-colors ${
-                String(year) === String(y)
+                !isAllYears && String(year) === String(y)
                   ? 'bg-primary text-primary-foreground'
                   : 'glass text-muted-foreground hover:text-foreground hover:bg-white/10'
               }`}>
               {y}
             </a>
           ))}
-          {year && (
-            <a href="/results" className="px-3 py-2 rounded-xl text-xs font-medium glass text-muted-foreground hover:bg-white/10">
-              전체
-            </a>
-          )}
+          <a href={`/results?year=all${q ? `&q=${q}` : ''}`}
+            className={`px-3 py-2 rounded-xl text-xs font-medium transition-colors ${
+              isAllYears
+                ? 'bg-primary text-primary-foreground'
+                : 'glass text-muted-foreground hover:text-foreground hover:bg-white/10'
+            }`}>
+            전체
+          </a>
         </div>
       </div>
 
