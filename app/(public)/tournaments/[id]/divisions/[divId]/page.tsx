@@ -12,6 +12,12 @@ import type { Player, Team, Match, MatchSet, Group, Standing } from '@/lib/types
 
 const genderLabel: Record<string, string> = { male: '남자', female: '여자', mixed: '혼합' }
 const matchTypeLabel: Record<string, string> = { individual: '개인전', team: '단체전' }
+const phaseFormatLabel: Record<string, string> = {
+  round_robin: '리그',
+  single_elimination: '단일 토너먼트',
+  double_elimination: '더블 토너먼트',
+  group_knockout: '조별 토너먼트',
+}
 const teamMatchFormatLabel: Record<string, string> = {
   olympic: '올림픽 공식 (3인, 5전3선)',
   traditional_4s1d: '4단 1복 (최소4인, 5전3선)',
@@ -72,12 +78,15 @@ export default async function DivisionDetailPage({
     : { data: [] as Standing[] }
 
   const pMap = new Map(participants.map(p => [p.id, p]))
+  const getName = (pid?: string) => pid ? (pMap.get(pid) as Player | Team | undefined)?.name : undefined
+  const getClub = (pid?: string) => pid ? (pMap.get(pid) as Player | Team | undefined)?.club : undefined
+
   const annotatedMain = (mainMatches ?? []).map((m: Match) => ({
     ...m,
-    p1Name: m.participant1_id ? (pMap.get(m.participant1_id) as Player)?.name : undefined,
-    p1Club: m.participant1_id ? (pMap.get(m.participant1_id) as Player)?.club : undefined,
-    p2Name: m.participant2_id ? (pMap.get(m.participant2_id) as Player)?.name : undefined,
-    p2Club: m.participant2_id ? (pMap.get(m.participant2_id) as Player)?.club : undefined,
+    p1Name: getName(m.participant1_id),
+    p1Club: getClub(m.participant1_id),
+    p2Name: getName(m.participant2_id),
+    p2Club: getClub(m.participant2_id),
     sets: m.sets as MatchSet[],
   }))
 
@@ -104,22 +113,69 @@ export default async function DivisionDetailPage({
             <span className="ml-2 text-accent">{teamMatchFormatLabel[division.team_match_format]}</span>
           )}
         </p>
+        {(phases?.length ?? 0) > 0 && (
+          <div className="flex flex-wrap gap-2 mt-3">
+            {phases?.map(ph => (
+              <div key={ph.id} className="flex items-center gap-1.5 text-xs px-3 py-1.5 glass rounded-lg border border-white/10">
+                <span className="font-medium text-muted-foreground">
+                  {ph.phase_type === 'preliminary' ? '예선' : '본선'}
+                </span>
+                <span className="text-white/20">|</span>
+                <span>{phaseFormatLabel[ph.format] ?? ph.format}</span>
+                <span className="text-white/30">·</span>
+                <span>{ph.games_per_match}게임/{ph.points_per_game}점</span>
+                {ph.phase_type === 'preliminary' && ph.advancement_count && (
+                  <>
+                    <span className="text-white/30">·</span>
+                    <span className="text-primary font-medium">조당 {ph.advancement_count}팀 진출</span>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <section className="glass rounded-2xl p-5 border border-white/10">
         <h2 className="font-semibold mb-3 text-sm uppercase tracking-wider text-muted-foreground">
-          참가자 ({participants.length}명{!isIndividual ? '/팀' : ''})
+          {isIndividual ? `참가 선수 (${participants.length}명)` : `참가 팀 (${participants.length}팀)`}
         </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-          {participants.map(p => (
-            <div key={p.id} className="text-sm px-3 py-2 rounded-lg bg-white/5">
-              <div className="font-medium">{(p as Player).name}</div>
-              {(p as Player).club && (
-                <div className="text-xs text-muted-foreground truncate">{(p as Player).club}</div>
-              )}
-            </div>
-          ))}
-        </div>
+        {isIndividual ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+            {participants.map(p => (
+              <div key={p.id} className="text-sm px-3 py-2 rounded-lg bg-white/5">
+                <div className="font-medium">{(p as Player).name}</div>
+                {(p as Player).club && (
+                  <div className="text-xs text-muted-foreground truncate">{(p as Player).club}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {(participants as Team[]).map((team, i) => (
+              <details key={team.id} className="group">
+                <summary className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 cursor-pointer hover:bg-white/10 transition-colors list-none">
+                  <span className="text-xs text-muted-foreground w-5 text-right shrink-0">{i + 1}</span>
+                  <span className="font-medium flex-1">{team.name}</span>
+                  {team.club && <span className="text-xs text-muted-foreground">{team.club}</span>}
+                  <span className="text-xs text-muted-foreground shrink-0">{team.members?.length ?? 0}명</span>
+                </summary>
+                {(team.members?.length ?? 0) > 0 && (
+                  <div className="px-4 pt-1 pb-2 space-y-0.5">
+                    {[...(team.members ?? [])].sort((a, b) => a.player_order - b.player_order).map(m => (
+                      <div key={m.id} className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                        <span className="w-4 text-right text-xs shrink-0">{m.player_order}</span>
+                        <span className="text-foreground/80">{m.player_name}</span>
+                        {m.player_level && <span className="text-xs text-muted-foreground">({m.player_level}부)</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </details>
+            ))}
+          </div>
+        )}
       </section>
 
       {(hasPrelim || hasMain) && (
@@ -149,14 +205,14 @@ export default async function DivisionDetailPage({
                     .sort((a: Standing, b: Standing) => a.ranking - b.ranking)
                     .map((s: Standing) => ({
                       ...s,
-                      name: (pMap.get(s.participant_id) as Player)?.name ?? '?',
-                      club: (pMap.get(s.participant_id) as Player)?.club,
+                      name: getName(s.participant_id) ?? '?',
+                      club: getClub(s.participant_id),
                     }))
                 } else {
                   rows = calculateStandings(groupMatches as Match[], ids).map(s => ({
                     ...s,
-                    name: (pMap.get(s.participant_id) as Player)?.name ?? '?',
-                    club: (pMap.get(s.participant_id) as Player)?.club,
+                    name: getName(s.participant_id) ?? '?',
+                    club: getClub(s.participant_id),
                   }))
                 }
 
@@ -169,13 +225,18 @@ export default async function DivisionDetailPage({
                 return (
                   <div key={group.id} className="space-y-3">
                     <h3 className="font-bold">{group.name}</h3>
-                    <StandingsTable rows={rows} advanceCount={prelim?.advancement_count ?? 2} />
+                    <StandingsTable
+                      rows={rows}
+                      advanceCount={prelim?.advancement_count ?? 2}
+                      isTeam={!isIndividual}
+                    />
                     {groupMatches.some((m: Match) => m.status === 'completed') && (
                       <div className="space-y-1">
                         <p className="text-xs text-muted-foreground font-medium px-1">상대 전적</p>
                         <GroupMatrix
                           participants={orderedParticipants}
                           matches={groupMatches as Match[]}
+                          participantLabel={isIndividual ? '선수' : '팀'}
                         />
                       </div>
                     )}
@@ -187,7 +248,7 @@ export default async function DivisionDetailPage({
 
           {hasMain && (
             <TabsContent value="main" className="mt-4">
-              <BracketView matches={annotatedMain} totalRounds={mainRounds} />
+              <BracketView matches={annotatedMain} totalRounds={mainRounds} isTeam={!isIndividual} />
             </TabsContent>
           )}
         </Tabs>

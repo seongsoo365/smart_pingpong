@@ -110,6 +110,7 @@ export interface TeamMember {
   team_id: string
   player_name: string
   player_order: number
+  player_level?: number
 }
 
 export interface Match {

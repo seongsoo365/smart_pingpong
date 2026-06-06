@@ -1,10 +1,10 @@
 'use client'
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, Users, GitBranch, ClipboardList, Plus, Trash2, Save, ExternalLink, Pencil, Check, X, FileCheck } from 'lucide-react'
+import { ChevronLeft, Users, GitBranch, ClipboardList, Plus, Trash2, Save, ExternalLink, Pencil, Check, X, FileCheck, Settings2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import type { Tournament, Division, Gender, MatchType, TeamMatchFormat } from '@/lib/types'
+import type { Tournament, Division, TournamentPhase, Gender, MatchType, TeamMatchFormat, PhaseFormat } from '@/lib/types'
 
 const genderLabel: Record<string, string> = { male: '남자', female: '여자', mixed: '혼합' }
 const matchTypeLabel: Record<string, string> = { individual: '개인전', team: '단체전' }
@@ -18,9 +18,27 @@ const TEAM_FORMAT_LABEL: Record<TeamMatchFormat, string> = {
   three_singles: '3단식 — 3명, 3전2선(단·단·단)',
 }
 
+const PHASE_FORMAT_LABEL: Record<string, string> = {
+  round_robin: '리그',
+  single_elimination: '단일 토너먼트',
+}
+
 interface DivisionForm { name: string; gender: Gender; match_type: MatchType; team_match_format: TeamMatchFormat | ''; max_teams: number | '' }
 type NewDivisionForm = DivisionForm
 const defaultNewDiv = (): DivisionForm => ({ name: '', gender: 'male', match_type: 'individual', team_match_format: '', max_teams: '' })
+
+interface PhaseEdit {
+  hasPrelim: boolean
+  prelim: { format: PhaseFormat; games_per_match: number; points_per_game: number; advancement_count: number }
+  main: { format: PhaseFormat; games_per_match: number; points_per_game: number }
+}
+function defaultPhaseEdit(): PhaseEdit {
+  return {
+    hasPrelim: false,
+    prelim: { format: 'round_robin', games_per_match: 5, points_per_game: 11, advancement_count: 2 },
+    main: { format: 'single_elimination', games_per_match: 5, points_per_game: 11 },
+  }
+}
 
 export default function TournamentEditPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -28,6 +46,7 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
 
   const [tournament, setTournament] = useState<Tournament | null>(null)
   const [divisions, setDivisions] = useState<Division[]>([])
+  const [phasesMap, setPhasesMap] = useState<Record<string, TournamentPhase[]>>({})
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     name: '', venue: '', description: '', start_date: '', end_date: '',
@@ -39,6 +58,9 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
   const [editingDivId, setEditingDivId] = useState<string | null>(null)
   const [editDiv, setEditDiv] = useState<DivisionForm>(defaultNewDiv())
   const [savingDiv, setSavingDiv] = useState(false)
+  const [editingPhaseDivId, setEditingPhaseDivId] = useState<string | null>(null)
+  const [phaseEdit, setPhaseEdit] = useState<PhaseEdit>(defaultPhaseEdit())
+  const [savingPhase, setSavingPhase] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -59,7 +81,19 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
           status: t.status ?? 'draft',
         })
       }
-      setDivisions(d ?? [])
+      const divList = d ?? []
+      setDivisions(divList)
+      if (divList.length > 0) {
+        const divIds = divList.map(div => div.id)
+        const { data: phases } = await supabase
+          .from('tournament_phases').select('*').in('division_id', divIds).order('phase_order')
+        const map: Record<string, TournamentPhase[]> = {}
+        for (const ph of phases ?? []) {
+          if (!map[ph.division_id]) map[ph.division_id] = []
+          map[ph.division_id].push(ph)
+        }
+        setPhasesMap(map)
+      }
     }
     load()
   }, [id])
@@ -151,6 +185,93 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
       const err = await res.json()
       toast.error(err.error)
     }
+  }
+
+  function openPhaseEditor(divId: string) {
+    if (editingPhaseDivId === divId) {
+      setEditingPhaseDivId(null)
+      return
+    }
+    const phases = phasesMap[divId] ?? []
+    const prelim = phases.find(p => p.phase_type === 'preliminary')
+    const main = phases.find(p => p.phase_type === 'main')
+    setPhaseEdit({
+      hasPrelim: !!prelim,
+      prelim: {
+        format: (prelim?.format ?? 'round_robin') as PhaseFormat,
+        games_per_match: prelim?.games_per_match ?? 5,
+        points_per_game: prelim?.points_per_game ?? 11,
+        advancement_count: prelim?.advancement_count ?? 2,
+      },
+      main: {
+        format: (main?.format ?? 'single_elimination') as PhaseFormat,
+        games_per_match: main?.games_per_match ?? 5,
+        points_per_game: main?.points_per_game ?? 11,
+      },
+    })
+    setEditingPhaseDivId(divId)
+  }
+
+  async function savePhases(divId: string) {
+    setSavingPhase(true)
+    const existing = phasesMap[divId] ?? []
+    const existingPrelim = existing.find(p => p.phase_type === 'preliminary')
+    const existingMain = existing.find(p => p.phase_type === 'main')
+    const newPhases: TournamentPhase[] = []
+
+    // 예선 처리
+    if (phaseEdit.hasPrelim) {
+      const payload = {
+        format: phaseEdit.prelim.format,
+        games_per_match: phaseEdit.prelim.games_per_match,
+        points_per_game: phaseEdit.prelim.points_per_game,
+        advancement_count: phaseEdit.prelim.advancement_count,
+      }
+      if (existingPrelim) {
+        const { data } = await supabase.from('tournament_phases').update(payload).eq('id', existingPrelim.id).select().single()
+        if (data) newPhases.push(data as TournamentPhase)
+      } else {
+        const { data } = await supabase.from('tournament_phases').insert({
+          division_id: divId, phase_type: 'preliminary', phase_order: 1, is_active: true, ...payload,
+        }).select().single()
+        if (data) newPhases.push(data as TournamentPhase)
+      }
+    } else if (existingPrelim) {
+      await supabase.from('tournament_phases').delete().eq('id', existingPrelim.id)
+    }
+
+    // 본선 처리
+    const mainPayload = {
+      format: phaseEdit.main.format,
+      games_per_match: phaseEdit.main.games_per_match,
+      points_per_game: phaseEdit.main.points_per_game,
+    }
+    if (existingMain) {
+      const { data } = await supabase.from('tournament_phases').update(mainPayload).eq('id', existingMain.id).select().single()
+      if (data) newPhases.push(data as TournamentPhase)
+    } else {
+      const { data } = await supabase.from('tournament_phases').insert({
+        division_id: divId, phase_type: 'main', phase_order: phaseEdit.hasPrelim ? 2 : 1, is_active: true, ...mainPayload,
+      }).select().single()
+      if (data) newPhases.push(data as TournamentPhase)
+    }
+
+    newPhases.sort((a, b) => a.phase_order - b.phase_order)
+    setPhasesMap(prev => ({ ...prev, [divId]: newPhases }))
+    setSavingPhase(false)
+    setEditingPhaseDivId(null)
+    toast.success('단계 설정이 저장되었습니다')
+  }
+
+  function phaseSummary(divId: string) {
+    const phases = phasesMap[divId] ?? []
+    if (phases.length === 0) return null
+    return phases.map(ph => {
+      const fmtLabel = PHASE_FORMAT_LABEL[ph.format] ?? ph.format
+      const typeLabel = ph.phase_type === 'preliminary' ? '예선' : '본선'
+      const adv = ph.phase_type === 'preliminary' && ph.advancement_count ? ` · 진출 ${ph.advancement_count}팀` : ''
+      return `${typeLabel}: ${fmtLabel} · ${ph.games_per_match}게임/${ph.points_per_game}점${adv}`
+    }).join('  |  ')
   }
 
   if (!tournament) {
@@ -267,93 +388,200 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
           </button>
         </div>
 
-        {/* Existing divisions */}
         {divisions.length > 0 ? (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {divisions.map(div => (
-              <div key={div.id} className="rounded-xl bg-white/5 px-4 py-3">
-                {editingDivId === div.id ? (
-                  <form onSubmit={handleSaveDivision} className="flex flex-wrap items-end gap-2">
-                    <div className="space-y-1 flex-1 min-w-28">
-                      <label className="text-xs text-muted-foreground">부수명</label>
-                      <input required value={editDiv.name}
-                        onChange={e => setEditDiv(p => ({ ...p, name: e.target.value }))}
-                        className="w-full glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary" />
+              <div key={div.id} className="rounded-xl bg-white/5 overflow-hidden">
+                {/* Division row */}
+                <div className="px-4 py-3">
+                  {editingDivId === div.id ? (
+                    <form onSubmit={handleSaveDivision} className="flex flex-wrap items-end gap-2">
+                      <div className="space-y-1 flex-1 min-w-28">
+                        <label className="text-xs text-muted-foreground">부수명</label>
+                        <input required value={editDiv.name}
+                          onChange={e => setEditDiv(p => ({ ...p, name: e.target.value }))}
+                          className="w-full glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">성별</label>
+                        <select value={editDiv.gender} onChange={e => setEditDiv(p => ({ ...p, gender: e.target.value as Gender }))}
+                          className="glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-background outline-none focus:border-primary">
+                          <option value="male">남자</option>
+                          <option value="female">여자</option>
+                          <option value="mixed">혼합</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">경기 유형</label>
+                        <select value={editDiv.match_type} onChange={e => setEditDiv(p => ({ ...p, match_type: e.target.value as MatchType, team_match_format: '' }))}
+                          className="glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-background outline-none focus:border-primary">
+                          <option value="individual">개인전</option>
+                          <option value="team">단체전</option>
+                        </select>
+                      </div>
+                      {editDiv.match_type === 'team' && (
+                        <>
+                          <div className="space-y-1 w-full sm:w-auto">
+                            <label className="text-xs text-muted-foreground">단체전 방식</label>
+                            <select value={editDiv.team_match_format} onChange={e => setEditDiv(p => ({ ...p, team_match_format: e.target.value as TeamMatchFormat | '' }))}
+                              className="glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-background outline-none focus:border-primary w-full">
+                              <option value="">-- 방식 선택 --</option>
+                              {(Object.entries(TEAM_FORMAT_LABEL) as [TeamMatchFormat, string][]).map(([val, label]) => (
+                                <option key={val} value={val}>{label}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs text-muted-foreground">최대 참가팀</label>
+                            <input
+                              type="number" min={1} placeholder="제한 없음"
+                              value={editDiv.max_teams}
+                              onChange={e => setEditDiv(p => ({ ...p, max_teams: e.target.value === '' ? '' : Number(e.target.value) }))}
+                              className="w-24 glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary" />
+                          </div>
+                        </>
+                      )}
+                      <div className="flex gap-1.5">
+                        <button type="submit" disabled={savingDiv}
+                          className="p-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-60">
+                          <Check className="w-3.5 h-3.5" />
+                        </button>
+                        <button type="button" onClick={() => setEditingDivId(null)}
+                          className="p-2 glass border border-white/10 rounded-lg hover:bg-white/10 transition-colors">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium">{genderLabel[div.gender]} {div.name}</span>
+                          <span className="text-xs text-muted-foreground">{matchTypeLabel[div.match_type]}</span>
+                          {div.match_type === 'team' && div.team_match_format && (
+                            <span className="text-xs text-accent">{TEAM_FORMAT_LABEL[div.team_match_format]}</span>
+                          )}
+                          {div.match_type === 'team' && div.max_teams && (
+                            <span className="text-xs text-muted-foreground">최대 {div.max_teams}팀</span>
+                          )}
+                        </div>
+                        {phaseSummary(div.id) && (
+                          <p className="text-xs text-muted-foreground mt-0.5">{phaseSummary(div.id)}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Link href={`/admin/tournaments/${id}/players?divId=${div.id}`}
+                          className="text-xs px-2.5 py-1.5 glass border border-white/10 rounded-lg hover:bg-white/10 transition-colors">
+                          선수 관리
+                        </Link>
+                        <button
+                          onClick={() => { setEditingDivId(null); openPhaseEditor(div.id) }}
+                          title="단계 설정"
+                          className={`p-1.5 rounded-lg transition-colors ${editingPhaseDivId === div.id ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:text-primary'}`}>
+                          <Settings2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => { setEditingPhaseDivId(null); startEditDiv(div) }}
+                          className="p-1.5 text-muted-foreground hover:text-primary transition-colors">
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => handleDeleteDivision(div)}
+                          className="p-1.5 text-muted-foreground hover:text-destructive transition-colors">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-xs text-muted-foreground">성별</label>
-                      <select value={editDiv.gender} onChange={e => setEditDiv(p => ({ ...p, gender: e.target.value as Gender }))}
-                        className="glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-background outline-none focus:border-primary">
-                        <option value="male">남자</option>
-                        <option value="female">여자</option>
-                        <option value="mixed">혼합</option>
-                      </select>
+                  )}
+                </div>
+
+                {/* Phase settings section */}
+                {editingPhaseDivId === div.id && (
+                  <div className="border-t border-white/10 bg-white/[0.03] px-4 py-4 space-y-4">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">단계 설정</p>
+
+                    {/* 예선 */}
+                    <div className="space-y-3">
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input type="checkbox" checked={phaseEdit.hasPrelim}
+                          onChange={e => setPhaseEdit(p => ({ ...p, hasPrelim: e.target.checked }))}
+                          className="accent-primary w-4 h-4" />
+                        <span className="text-sm font-medium">예선전 (리그) 사용</span>
+                      </label>
+                      {phaseEdit.hasPrelim && (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pl-6">
+                          <div className="space-y-1">
+                            <label className="text-xs text-muted-foreground">예선 방식</label>
+                            <select value={phaseEdit.prelim.format}
+                              onChange={e => setPhaseEdit(p => ({ ...p, prelim: { ...p.prelim, format: e.target.value as PhaseFormat } }))}
+                              className="w-full glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-background outline-none focus:border-primary">
+                              <option value="round_robin">리그 (라운드로빈)</option>
+                              <option value="group_knockout">조별 토너먼트</option>
+                            </select>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs text-muted-foreground">경기당 게임 수</label>
+                            <input type="number" min={1} max={99}
+                              value={phaseEdit.prelim.games_per_match}
+                              onChange={e => setPhaseEdit(p => ({ ...p, prelim: { ...p.prelim, games_per_match: Number(e.target.value) } }))}
+                              className="w-full glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary" />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs text-muted-foreground">게임당 점수</label>
+                            <input type="number" min={1} max={99}
+                              value={phaseEdit.prelim.points_per_game}
+                              onChange={e => setPhaseEdit(p => ({ ...p, prelim: { ...p.prelim, points_per_game: Number(e.target.value) } }))}
+                              className="w-full glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary" />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs text-muted-foreground">조당 본선 진출 수</label>
+                            <input type="number" min={1} max={99}
+                              value={phaseEdit.prelim.advancement_count}
+                              onChange={e => setPhaseEdit(p => ({ ...p, prelim: { ...p.prelim, advancement_count: Number(e.target.value) } }))}
+                              className="w-full glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary" />
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-xs text-muted-foreground">경기 유형</label>
-                      <select value={editDiv.match_type} onChange={e => setEditDiv(p => ({ ...p, match_type: e.target.value as MatchType, team_match_format: '' }))}
-                        className="glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-background outline-none focus:border-primary">
-                        <option value="individual">개인전</option>
-                        <option value="team">단체전</option>
-                      </select>
-                    </div>
-                    {editDiv.match_type === 'team' && (
-                      <>
-                        <div className="space-y-1 w-full sm:w-auto">
-                          <label className="text-xs text-muted-foreground">단체전 방식</label>
-                          <select value={editDiv.team_match_format} onChange={e => setEditDiv(p => ({ ...p, team_match_format: e.target.value as TeamMatchFormat | '' }))}
-                            className="glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-background outline-none focus:border-primary w-full">
-                            <option value="">-- 방식 선택 --</option>
-                            {(Object.entries(TEAM_FORMAT_LABEL) as [TeamMatchFormat, string][]).map(([val, label]) => (
-                              <option key={val} value={val}>{label}</option>
-                            ))}
+
+                    {/* 본선 */}
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">본선 (토너먼트)</p>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pl-0">
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">본선 방식</label>
+                          <select value={phaseEdit.main.format}
+                            onChange={e => setPhaseEdit(p => ({ ...p, main: { ...p.main, format: e.target.value as PhaseFormat } }))}
+                            className="w-full glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-background outline-none focus:border-primary">
+                            <option value="single_elimination">단일 토너먼트</option>
+                            <option value="double_elimination">더블 토너먼트</option>
+                            <option value="round_robin">리그</option>
                           </select>
                         </div>
                         <div className="space-y-1">
-                          <label className="text-xs text-muted-foreground">최대 참가팀</label>
-                          <input
-                            type="number" min={1} placeholder="제한 없음"
-                            value={editDiv.max_teams}
-                            onChange={e => setEditDiv(p => ({ ...p, max_teams: e.target.value === '' ? '' : Number(e.target.value) }))}
-                            className="w-24 glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary" />
+                          <label className="text-xs text-muted-foreground">경기당 게임 수</label>
+                          <input type="number" min={1} max={99}
+                            value={phaseEdit.main.games_per_match}
+                            onChange={e => setPhaseEdit(p => ({ ...p, main: { ...p.main, games_per_match: Number(e.target.value) } }))}
+                            className="w-full glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary" />
                         </div>
-                      </>
-                    )}
-                    <div className="flex gap-1.5">
-                      <button type="submit" disabled={savingDiv}
-                        className="p-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-60">
-                        <Check className="w-3.5 h-3.5" />
-                      </button>
-                      <button type="button" onClick={() => setEditingDivId(null)}
-                        className="p-2 glass border border-white/10 rounded-lg hover:bg-white/10 transition-colors">
-                        <X className="w-3.5 h-3.5" />
-                      </button>
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">게임당 점수</label>
+                          <input type="number" min={1} max={99}
+                            value={phaseEdit.main.points_per_game}
+                            onChange={e => setPhaseEdit(p => ({ ...p, main: { ...p.main, points_per_game: Number(e.target.value) } }))}
+                            className="w-full glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary" />
+                        </div>
+                      </div>
                     </div>
-                  </form>
-                ) : (
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="font-medium">{genderLabel[div.gender]} {div.name}</span>
-                      <span className="text-xs text-muted-foreground ml-2">{matchTypeLabel[div.match_type]}</span>
-                      {div.match_type === 'team' && div.team_match_format && (
-                        <span className="text-xs text-accent ml-2">{TEAM_FORMAT_LABEL[div.team_match_format]}</span>
-                      )}
-                      {div.match_type === 'team' && div.max_teams && (
-                        <span className="text-xs text-muted-foreground ml-2">최대 {div.max_teams}팀</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Link href={`/admin/tournaments/${id}/players?divId=${div.id}`}
-                        className="text-xs px-3 py-1.5 glass border border-white/10 rounded-lg hover:bg-white/10 transition-colors">
-                        선수 관리
-                      </Link>
-                      <button onClick={() => startEditDiv(div)}
-                        className="p-1.5 text-muted-foreground hover:text-primary transition-colors">
-                        <Pencil className="w-3.5 h-3.5" />
+
+                    <div className="flex gap-2 pt-1">
+                      <button onClick={() => savePhases(div.id)} disabled={savingPhase}
+                        className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground px-4 py-1.5 rounded-lg text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60">
+                        <Save className="w-3.5 h-3.5" />
+                        {savingPhase ? '저장 중...' : '저장'}
                       </button>
-                      <button onClick={() => handleDeleteDivision(div)}
-                        className="p-1.5 text-muted-foreground hover:text-destructive transition-colors">
-                        <Trash2 className="w-3.5 h-3.5" />
+                      <button onClick={() => setEditingPhaseDivId(null)}
+                        className="px-4 py-1.5 glass border border-white/10 rounded-lg text-sm hover:bg-white/10 transition-colors">
+                        취소
                       </button>
                     </div>
                   </div>

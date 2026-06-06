@@ -1,6 +1,6 @@
 # Smart Pingpong 로드맵
 
-> 마지막 업데이트: 2026-06-06 (5차 — Supabase MCP DB 상태 검증 반영)  
+> 마지막 업데이트: 2026-06-07 (6차 — 단체전 부수 표시, 대진표 버그 수정, 단계 설정 UI 추가)  
 > 상태 표시: ✅ 완료 · 🔄 진행 중 · ⬜ 예정 · ❌ 보류
 
 ---
@@ -24,6 +24,8 @@
 - ✅ 관리자 팀 직접 등록 / 수정 / 삭제 (`/admin/tournaments/[id]/players` — 단체전 부수 선택 시 팀 UI로 자동 전환)
 - ✅ 팀 시드 번호 입력
 - ✅ 부수별 최대 참가팀 수 설정 (`divisions.max_teams`)
+- ✅ 팀원 부수(등급) 정보 입력 — 관리자 등록 폼 및 공개 참가 신청 폼 모두 지원
+- ✅ 팀원 부수 표시 — 접수 관리 · 공개 대회 상세 · 부수 상세 모든 화면에서 "선수명(N부)" 형식으로 표시
 
 ### 온라인 참가 신청
 - ✅ 접수 중 상태에서 공개 참가 신청 폼 (개인전 / 단체전 모두 지원)
@@ -36,17 +38,33 @@
 - ✅ 선수 관리 페이지 미승인 배지 및 즉석 승인
 - ✅ 대진표 생성 시 미승인 선수/팀 자동 제외
 
+### 대진표 및 단계 설정
+- ✅ 관리자 편집 페이지에서 부수별 단계(예선/본선) 설정 추가·수정
+  - 예선 사용 여부 토글, 예선 방식·경기당 게임 수·게임당 점수·조당 본선 진출 수 입력
+  - 본선 방식·경기당 게임 수·게임당 점수 입력
+  - 부수 행에 현재 단계 설정 요약 상시 표시
+- ✅ 단체전 대진표 생성 — `teams` 테이블 조회로 수정 (기존 `players`만 조회하던 버그 수정)
+- ✅ 단체전 대진표 생성 시 `participant1_type: 'team'` 및 조 배정 정상 처리
+
+### 결과 입력
+- ✅ 세트별 점수 입력 (`match_sets` 테이블 저장, "11-7, 8-11" 형식 요약 표시)
+- ✅ 단체전 결과 입력 UI — 경기 방식별 개인 게임(단식/복식) 승패 입력
+
 ### 공개 페이지
 - ✅ 대회 목록 / 상세 / 결과 이력
 - ✅ 예선 상대 전적 매트릭스 표시
-- ✅ 본선 브라켓 뷰 (선수명 + 소속 표시)
+- ✅ 본선 브라켓 뷰 (선수명 + 소속 표시, 단체전 팀 지원)
 - ✅ 커스텀 404 / 500 에러 페이지
 - ✅ 단체전 참가 팀 현황 — 승인 N/최대N팀 · 대기 N팀 표시
 - ✅ 단체전 참가 팀 현황 — 승인팀 명단(접기/펼치기) + 대기 순번 목록 분리 표시
+- ✅ 부수 상세 페이지에 예선/본선 단계 정보 표시 (방식 · 게임 수 · 점수 · 조당 진출 팀 수)
+- ✅ 단체전 부수 상세 — 참가팀 접기/펼치기 + 팀원 부수(N부) 표시
 
 ### 인프라 / 보안
 - ✅ 관리자 인증 (Supabase Auth) 및 역할 권한 (system_admin / tournament_admin)
 - ✅ Supabase 미설정 시 SetupBanner 표시로 graceful degradation
+- ✅ select 드롭다운 가독성 수정 — 다크 테마에서 흰 배경에 흰 글씨 문제 해결 (`globals.css option 스타일`)
+- ✅ `.gitignore` — `*.log` 및 `.playwright-mcp/` 제외 추가
 
 ---
 
@@ -57,10 +75,10 @@
 | 항목 | 내용 | 상태 |
 |------|------|------|
 | Supabase 프로젝트 생성 | 프로덕션용 Supabase 프로젝트 신규 생성 | ⬜ |
-| 마이그레이션 실행 | `001` → `002` → `003` → `004` → `005` → `006_team_slots.sql` 순서대로 SQL Editor 실행 | ✅ |
+| 마이그레이션 실행 | `001` → `002` → `003` → `004` → `005` → `006_team_slots.sql` → `007_team_member_level.sql` 순서대로 SQL Editor 실행 | ✅ |
 | 초기 system_admin 계정 생성 | Supabase Authentication에서 첫 관리자 계정 생성 후 `user_profiles.role`을 `system_admin`으로 수동 업데이트 | ✅ |
-| Vercel 프로젝트 연결 | GitHub 저장소 연결, Framework: Next.js 자동 감지 | ⬜ |
-| 환경 변수 등록 | Vercel > Settings > Environment Variables에 아래 3개 등록 | ⬜ |
+| Vercel 프로젝트 연결 | GitHub 저장소 연결, Framework: Next.js 자동 감지 | ✅ |
+| 환경 변수 등록 | Vercel > Settings > Environment Variables에 아래 3개 등록 | ✅ |
 
 **등록할 환경 변수:**
 ```
@@ -76,8 +94,8 @@ SUPABASE_SERVICE_ROLE_KEY      = eyJ...   ← 서버 전용, NEXT_PUBLIC_ 붙이
 | RLS 활성화 확인 | 모든 테이블에 Row Level Security가 켜져 있는지 확인 | ✅ |
 | 공개 읽기 정책 확인 | `tournaments`, `matches`, `players`, `teams`, `team_members` 등 공개 SELECT 정책 정상 동작 확인 | ✅ |
 | `get_my_role()` 함수 배포 | `002_fix_rls_recursion.sql` 실행 후 함수 존재 여부 확인 | ✅ |
-| 이메일 인증 설정 | Authentication > Email 설정에서 Confirm email 옵션 검토 | ⬜ |
-| CORS / 허용 URL | Supabase > Authentication > URL Configuration에 배포 도메인 추가 | ⬜ |
+| 이메일 인증 설정 | Authentication > Email 설정에서 Confirm email 옵션 검토 | ✅ |
+| CORS / 허용 URL | Supabase > Authentication > URL Configuration에 배포 도메인 추가 | ✅ |
 
 ---
 
@@ -90,6 +108,7 @@ SUPABASE_SERVICE_ROLE_KEY      = eyJ...   ← 서버 전용, NEXT_PUBLIC_ 붙이
 | BUG-03 | `draw/page.tsx` | 시드 정렬 없이 브라켓 생성 → `seed` 기준 정렬 후 생성 | ✅ |
 | BUG-04 | `players/page.tsx` | 단체전 부수 선택 시 개인전 UI 표시 — match_type 분기 미처리 | ✅ |
 | BUG-05 | `players/page.tsx` | 팀 목록 미조회 — `teams` 테이블에 없는 `created_at` 정렬 컬럼 오류 | ✅ |
+| BUG-06 | `draw/page.tsx` | 단체전 대진표 생성 불가 — `players` 테이블만 조회하여 팀이 0명으로 표시 | ✅ |
 
 ---
 
@@ -98,9 +117,10 @@ SUPABASE_SERVICE_ROLE_KEY      = eyJ...   ← 서버 전용, NEXT_PUBLIC_ 붙이
 | # | 내용 | 상태 |
 |---|------|------|
 | FEAT-01 | 선수 일괄 등록 (`이름,소속` 붙여넣기, 중복 경고, 미리보기) | ✅ |
-| FEAT-02 | 세트별 점수 입력 (11-9, 8-11 형식, `match_sets` 저장) | ⬜ |
+| FEAT-02 | 세트별 점수 입력 (11-9, 8-11 형식, `match_sets` 저장) | ✅ |
 | FEAT-03 | 대회 로고 이미지 업로드 (Supabase Storage) | ⬜ |
 | FEAT-04 | 커스텀 404 / 에러 페이지 | ✅ |
+| FEAT-08 | 단계 설정 UI — 부수별 예선/본선 방식·게임 수·점수·진출 수 관리자 편집 및 공개 표시 | ✅ |
 
 ---
 
@@ -114,11 +134,11 @@ SUPABASE_SERVICE_ROLE_KEY      = eyJ...   ← 서버 전용, NEXT_PUBLIC_ 붙이
   - ✅ 관리자 팀 직접 등록/수정/삭제 (선수 관리 페이지 단체전 분기)
   - ✅ 부수별 최대 참가팀 수 설정 및 마감 표시
   - ✅ 공개 페이지 승인팀 / 대기 순번 현황 표시
-  - ✅ DB 마이그레이션 `005_team_registration.sql`, `006_team_slots.sql`
-- **미구현:**
-  - ⬜ 팀전 결과 입력 UI (단체전 개인 경기별 구조)
-  - ⬜ 공개 페이지 팀 브라켓 뷰
-- **상태:** 🔄
+  - ✅ 팀전 결과 입력 UI (단체전 개인 경기별 구조)
+  - ✅ 공개 페이지 팀 브라켓 뷰
+  - ✅ 팀원 부수(등급) 입력 및 전 화면 표시 (`team_members.player_level`)
+  - ✅ 단체전 대진표 생성 정상화 (teams 테이블 조회, participant1_type: 'team')
+- **상태:** ✅
 
 ---
 
@@ -157,3 +177,5 @@ SUPABASE_SERVICE_ROLE_KEY      = eyJ...   ← 서버 전용, NEXT_PUBLIC_ 붙이
 | v0.7 | 2026-06-04 | 단체전 공개 참가 신청 — 방식별 팀원 수 적용, 관리자 팀 접수 관리 |
 | v0.8 | 2026-06-06 | 단체전 관리자 팀 직접 등록/수정/삭제 (BUG-04·05 포함) |
 | v0.9 | 2026-06-06 | 단체전 최대 참가팀 제한, 시간순 대기열·승인, 공개 현황 페이지 |
+| v1.0 | 2026-06-06 | FEAT-02 세트별 점수 입력, FEAT-05 팀전 결과 입력·팀 브라켓 뷰 |
+| v1.1 | 2026-06-07 | 팀원 부수(등급) 입력·표시, select UI 가독성 수정, BUG-06 단체전 대진표 생성, FEAT-08 단계 설정 관리 UI |

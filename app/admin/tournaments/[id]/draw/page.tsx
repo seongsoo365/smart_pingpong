@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { generateRoundRobin, distributeIntoGroups } from '@/lib/utils/roundrobin'
 import { generateSeededBracket, getBracketRounds, nextPowerOfTwo } from '@/lib/utils/bracket'
-import type { Division, Player, TournamentPhase } from '@/lib/types'
+import type { Division, Player, Team, TournamentPhase } from '@/lib/types'
 
 const genderLabel: Record<string, string> = { male: '남자', female: '여자', mixed: '혼합' }
 
@@ -17,6 +17,7 @@ export default function DrawPage() {
   const [selectedDivId, setSelectedDivId] = useState('')
   const [phases, setPhases] = useState<TournamentPhase[]>([])
   const [players, setPlayers] = useState<Player[]>([])
+  const [teams, setTeams] = useState<Team[]>([])
   const [groupCount, setGroupCount] = useState(2)
   const [loading, setLoading] = useState(false)
   const [generated, setGenerated] = useState(false)
@@ -30,23 +31,46 @@ export default function DrawPage() {
       })
   }, [id])
 
+  const selectedDiv = divisions.find(d => d.id === selectedDivId)
+  const isTeam = selectedDiv?.match_type === 'team'
+
   useEffect(() => {
     if (!selectedDivId) return
-    Promise.all([
-      supabase.from('players').select('*').eq('division_id', selectedDivId).eq('confirmed', true).order('seed', { nullsFirst: false }),
-      supabase.from('tournament_phases').select('*').eq('division_id', selectedDivId).order('phase_order'),
-    ]).then(([{ data: p }, { data: ph }]) => {
-      setPlayers(p ?? [])
-      setPhases(ph ?? [])
-    })
-  }, [selectedDivId])
+    const div = divisions.find(d => d.id === selectedDivId)
+    if (!div) return
+
+    if (div.match_type === 'team') {
+      Promise.all([
+        supabase.from('teams').select('*').eq('division_id', selectedDivId).eq('confirmed', true).order('seed', { nullsFirst: false }),
+        supabase.from('tournament_phases').select('*').eq('division_id', selectedDivId).order('phase_order'),
+      ]).then(([{ data: t }, { data: ph }]) => {
+        setTeams(t ?? [])
+        setPlayers([])
+        setPhases(ph ?? [])
+      })
+    } else {
+      Promise.all([
+        supabase.from('players').select('*').eq('division_id', selectedDivId).eq('confirmed', true).order('seed', { nullsFirst: false }),
+        supabase.from('tournament_phases').select('*').eq('division_id', selectedDivId).order('phase_order'),
+      ]).then(([{ data: p }, { data: ph }]) => {
+        setPlayers(p ?? [])
+        setTeams([])
+        setPhases(ph ?? [])
+      })
+    }
+  }, [selectedDivId, divisions])
 
   const prelim = phases.find(p => p.phase_type === 'preliminary')
   const main = phases.find(p => p.phase_type === 'main')
 
+  // 현재 부수의 참가자(개인 or 팀) 목록
+  const participants = isTeam ? teams : players
+  const participantType = isTeam ? 'team' : 'player'
+  const unitLabel = isTeam ? '팀' : '명'
+
   async function generateDraw() {
     if (!main) { toast.error('본선 단계가 없습니다'); return }
-    if (players.length < 2) { toast.error('선수를 최소 2명 이상 등록하세요'); return }
+    if (participants.length < 2) { toast.error(`${isTeam ? '팀' : '선수'}을 최소 2${unitLabel} 이상 등록하세요`); return }
 
     // BUG-02: warn before overwriting completed results
     const { data: existingMatches } = await supabase.from('matches').select('status').eq('phase_id', main.id)
@@ -66,12 +90,18 @@ export default function DrawPage() {
     }
     await supabase.from('matches').delete().eq('phase_id', main.id)
 
+    // Reset group_id on all participants
+    if (isTeam) {
+      await supabase.from('teams').update({ group_id: null }).eq('division_id', selectedDivId)
+    } else {
+      await supabase.from('players').update({ group_id: null }).eq('division_id', selectedDivId)
+    }
+
     if (prelim) {
-      // Create groups
-      const distributed = distributeIntoGroups(players, groupCount)
+      const distributed = distributeIntoGroups(participants as (Player | Team)[], groupCount)
       for (let gi = 0; gi < distributed.length; gi++) {
-        const groupPlayers = distributed[gi]
-        if (groupPlayers.length === 0) continue
+        const groupParticipants = distributed[gi]
+        if (groupParticipants.length === 0) continue
 
         const { data: group } = await supabase
           .from('groups')
@@ -80,14 +110,18 @@ export default function DrawPage() {
 
         if (!group) continue
 
-        // Assign players to group
-        for (const p of groupPlayers) {
-          await supabase.from('players').update({ group_id: group.id }).eq('id', p.id)
+        // Assign participants to group
+        for (const p of groupParticipants) {
+          if (isTeam) {
+            await supabase.from('teams').update({ group_id: group.id }).eq('id', p.id)
+          } else {
+            await supabase.from('players').update({ group_id: group.id }).eq('id', p.id)
+          }
         }
 
         // Generate round robin matches
-        const playerIds = groupPlayers.map(p => p.id)
-        const rounds = generateRoundRobin(playerIds)
+        const ids = groupParticipants.map(p => p.id)
+        const rounds = generateRoundRobin(ids)
         let matchNum = 1
         for (let ri = 0; ri < rounds.length; ri++) {
           for (const [p1, p2] of rounds[ri]) {
@@ -98,14 +132,14 @@ export default function DrawPage() {
               match_number: matchNum++,
               participant1_id: p1,
               participant2_id: p2,
-              participant1_type: 'player',
+              participant1_type: participantType,
               status: 'pending',
             })
           }
         }
       }
 
-      // Generate main bracket — ALL rounds (TBD slots, filled when prelim completes)
+      // Generate main bracket — ALL rounds (TBD slots)
       const totalAdvancing = groupCount * (prelim.advancement_count ?? 2)
       const mainSlots = nextPowerOfTwo(totalAdvancing)
       const mainTotalRounds = getBracketRounds(totalAdvancing)
@@ -116,21 +150,20 @@ export default function DrawPage() {
             phase_id: main.id,
             round,
             match_number: matchNum,
-            participant1_type: 'player',
+            participant1_type: participantType,
             status: 'pending',
           })
         }
       }
     } else {
-      // Direct bracket (no preliminary) — create ALL rounds, propagate bye winners
-      const seeded = [...players]
-        .sort((a, b) => (a.seed ?? 9999) - (b.seed ?? 9999))
+      // Direct bracket (no preliminary)
+      const seeded = [...participants]
+        .sort((a, b) => ((a as Player | Team).seed ?? 9999) - ((b as Player | Team).seed ?? 9999))
         .map(p => p.id)
       const bracket = generateSeededBracket(seeded)
-      const totalRounds = getBracketRounds(players.length)
-      const slots = nextPowerOfTwo(players.length)
+      const totalRounds = getBracketRounds(participants.length)
+      const slots = nextPowerOfTwo(participants.length)
 
-      // Insert every round upfront, collect IDs for bye propagation
       const matchIdMap = new Map<string, string>()
       for (let round = 1; round <= totalRounds; round++) {
         const matchCount = slots / Math.pow(2, round)
@@ -139,7 +172,7 @@ export default function DrawPage() {
             phase_id: main.id,
             round,
             match_number: matchNum,
-            participant1_type: 'player',
+            participant1_type: participantType,
             status: 'pending',
           }
           if (round === 1) {
@@ -193,7 +226,8 @@ export default function DrawPage() {
                 ? 'bg-primary text-primary-foreground'
                 : 'glass border border-white/10 text-muted-foreground hover:bg-white/10'
             }`}>
-            {genderLabel[div.gender]} {divisions.find(d => d.id === div.id)?.name}
+            {genderLabel[div.gender]} {div.name}
+            {div.match_type === 'team' && <span className="ml-1 text-xs opacity-70">단체</span>}
           </button>
         ))}
       </div>
@@ -202,7 +236,9 @@ export default function DrawPage() {
         <div className="glass rounded-2xl p-6 border border-white/10 space-y-5">
           <div className="space-y-1">
             <h2 className="font-semibold">대진 설정</h2>
-            <p className="text-sm text-muted-foreground">등록된 선수: {players.length}명</p>
+            <p className="text-sm text-muted-foreground">
+              등록된 {isTeam ? '팀' : '선수'}: {participants.length}{unitLabel}
+            </p>
           </div>
 
           {prelim && (
@@ -222,14 +258,14 @@ export default function DrawPage() {
                 ))}
               </div>
               <p className="text-xs text-muted-foreground">
-                조당 약 {Math.ceil(players.length / groupCount)}명 · 조당 {prelim.advancement_count ?? 2}명 본선 진출
+                조당 약 {Math.ceil(participants.length / groupCount)}{unitLabel} · 조당 {prelim.advancement_count ?? 2}{unitLabel} 본선 진출
               </p>
             </div>
           )}
 
           {!prelim && (
             <div className="text-sm text-muted-foreground">
-              예선 없이 바로 본선 토너먼트 ({players.length}명 → {Math.ceil(Math.log2(Math.pow(2, Math.ceil(Math.log2(players.length)))))} 라운드)
+              예선 없이 바로 본선 토너먼트 ({participants.length}{unitLabel} → {Math.ceil(Math.log2(Math.pow(2, Math.ceil(Math.log2(participants.length)))))} 라운드)
             </div>
           )}
 
@@ -243,7 +279,7 @@ export default function DrawPage() {
           <div className="flex gap-3 pt-2">
             <button
               onClick={generateDraw}
-              disabled={loading || players.length < 2}
+              disabled={loading || participants.length < 2}
               className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-2.5 rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60"
             >
               <Shuffle className="w-4 h-4" />

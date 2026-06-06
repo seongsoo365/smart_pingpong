@@ -44,7 +44,9 @@ export default function RegisterPage() {
   // team
   const [teamName, setTeamName] = useState('')
   const [teamClub, setTeamClub] = useState('')
-  const [memberNames, setMemberNames] = useState<string[]>(['', '', ''])
+  const [members, setMembers] = useState<{ name: string; level: number | '' }[]>([
+    { name: '', level: '' }, { name: '', level: '' }, { name: '', level: '' },
+  ])
 
   useEffect(() => {
     Promise.all([
@@ -66,7 +68,7 @@ export default function RegisterPage() {
     setDivisionId(div.id)
     if (div.match_type === 'team') {
       const { min } = getTeamSize(div.team_match_format)
-      setMemberNames(Array(min).fill(''))
+      setMembers(Array.from({ length: min }, () => ({ name: '', level: '' as const })))
     }
   }
 
@@ -79,18 +81,20 @@ export default function RegisterPage() {
     if (div) selectDivision(div)
   }
 
-  function updateMember(idx: number, val: string) {
-    setMemberNames(prev => prev.map((n, i) => i === idx ? val : n))
+  function updateMember(idx: number, field: 'name' | 'level', val: string) {
+    setMembers(prev => prev.map((m, i) => i === idx
+      ? { ...m, [field]: field === 'level' ? (val ? Number(val) : '') : val }
+      : m))
   }
 
   function addMember() {
-    if (teamSize && memberNames.length >= teamSize.max) return
-    setMemberNames(prev => [...prev, ''])
+    if (teamSize && members.length >= teamSize.max) return
+    setMembers(prev => [...prev, { name: '', level: '' }])
   }
 
   function removeMember(idx: number) {
-    if (teamSize && memberNames.length <= teamSize.min) return
-    setMemberNames(prev => prev.filter((_, i) => i !== idx))
+    if (teamSize && members.length <= teamSize.min) return
+    setMembers(prev => prev.filter((_, i) => i !== idx))
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -99,8 +103,7 @@ export default function RegisterPage() {
     setLoading(true)
 
     if (isTeam) {
-      // Team registration
-      const validMembers = memberNames.map(n => n.trim()).filter(Boolean)
+      const validMembers = members.filter(m => m.name.trim())
       if (!teamName.trim()) { toast.error('팀명을 입력하세요'); setLoading(false); return }
       if (teamSize && validMembers.length < teamSize.min) {
         toast.error(`선수를 최소 ${teamSize.min}명 입력하세요`)
@@ -120,10 +123,11 @@ export default function RegisterPage() {
         return
       }
 
-      const memberRows = validMembers.map((player_name, i) => ({
+      const memberRows = validMembers.map((m, i) => ({
         team_id: team.id,
-        player_name,
+        player_name: m.name.trim(),
         player_order: i + 1,
+        player_level: m.level !== '' ? m.level : null,
       }))
       const { error: mErr } = await supabase.from('team_members').insert(memberRows)
       if (mErr) {
@@ -152,6 +156,7 @@ export default function RegisterPage() {
     setSubmitted(false)
     setName(''); setClub(''); setPhone('')
     setTeamName(''); setTeamClub('')
+    setMembers([{ name: '', level: '' }, { name: '', level: '' }, { name: '', level: '' }])
     if (selectedDiv) selectDivision(selectedDiv)
   }
 
@@ -248,21 +253,29 @@ export default function RegisterPage() {
                 <label className="text-sm font-medium">
                   선수 명단 *
                   <span className="text-muted-foreground font-normal ml-1 text-xs">
-                    ({memberNames.length}명
+                    ({members.length}명
                     {teamSize && teamSize.min !== teamSize.max && ` / 최소 ${teamSize.min}명`})
                   </span>
                 </label>
                 <div className="space-y-2">
-                  {memberNames.map((n, i) => (
+                  {members.map((m, i) => (
                     <div key={i} className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground w-5 text-right shrink-0">{i + 1}</span>
                       <input
-                        value={n}
-                        onChange={e => updateMember(i, e.target.value)}
+                        value={m.name}
+                        onChange={e => updateMember(i, 'name', e.target.value)}
                         placeholder={`선수 ${i + 1} 이름`}
                         className="flex-1 glass border border-white/10 rounded-xl px-4 py-2.5 text-sm bg-transparent outline-none focus:border-primary"
                       />
-                      {teamSize && memberNames.length > teamSize.min && (
+                      <input
+                        type="number" min={1} max={99}
+                        value={m.level}
+                        onChange={e => updateMember(i, 'level', e.target.value)}
+                        placeholder="-"
+                        className="w-14 text-center glass border border-white/10 rounded-xl px-2 py-2.5 text-sm bg-transparent outline-none focus:border-primary"
+                      />
+                      <span className="text-xs text-muted-foreground shrink-0">부</span>
+                      {teamSize && members.length > teamSize.min && (
                         <button type="button" onClick={() => removeMember(i)}
                           className="p-2 text-muted-foreground hover:text-destructive transition-colors shrink-0">
                           <Minus className="w-4 h-4" />
@@ -271,7 +284,7 @@ export default function RegisterPage() {
                     </div>
                   ))}
                 </div>
-                {teamSize && memberNames.length < teamSize.max && (
+                {teamSize && members.length < teamSize.max && (
                   <button type="button" onClick={addMember}
                     className="w-full py-2 glass border border-dashed border-white/20 rounded-xl text-sm text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors flex items-center justify-center gap-1.5">
                     <Plus className="w-3.5 h-3.5" /> 선수 추가

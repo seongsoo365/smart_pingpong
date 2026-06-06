@@ -10,9 +10,10 @@ interface Participant {
 interface Props {
   participants: Participant[]
   matches: Match[]
+  participantLabel?: string
 }
 
-export default function GroupMatrix({ participants, matches }: Props) {
+export default function GroupMatrix({ participants, matches, participantLabel = '선수' }: Props) {
   if (participants.length === 0) return null
 
   type Cell = { rowScore: number; colScore: number; rowWon: boolean }
@@ -32,7 +33,7 @@ export default function GroupMatrix({ participants, matches }: Props) {
         <thead>
           <tr className="border-b border-white/10">
             <th className="py-2 px-3 text-left text-muted-foreground font-medium bg-white/[0.02] min-w-[120px]">
-              선수
+              {participantLabel}
             </th>
             {participants.map((p) => (
               <th key={p.id} className="py-2 px-2 text-center text-muted-foreground font-medium bg-white/[0.02] min-w-[72px]">

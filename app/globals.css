@@ -116,4 +116,10 @@
   html {
     @apply font-sans;
   }
+
+  /* 네이티브 select 드롭다운: 다크 테마에서 옵션이 흰 배경에 흰 글씨가 되는 문제 방지 */
+  select option {
+    background-color: #1e293b;
+    color: #f1f5f9;
+  }
 }

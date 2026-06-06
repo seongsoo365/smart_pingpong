@@ -149,7 +149,10 @@ export default async function TournamentDetailPage({
                             {team.members.map(m => (
                               <div key={m.id} className="flex items-center gap-2 text-sm text-muted-foreground">
                                 <span className="w-4 text-right text-xs shrink-0">{m.player_order}</span>
-                                <span className="text-foreground/80">{m.player_name}</span>
+                                <span className="text-foreground/80">
+                                  {m.player_name}
+                                  {m.player_level && <span className="text-muted-foreground text-xs ml-0.5">({m.player_level}부)</span>}
+                                </span>
                               </div>
                             ))}
                           </div>

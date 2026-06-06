@@ -17,9 +17,11 @@ interface StandingRow {
 export default function StandingsTable({
   rows,
   advanceCount,
+  isTeam = false,
 }: {
   rows: StandingRow[]
   advanceCount?: number
+  isTeam?: boolean
 }) {
   return (
     <div className="rounded-xl overflow-hidden border border-white/10">
@@ -27,11 +29,15 @@ export default function StandingsTable({
         <TableHeader>
           <TableRow className="border-white/10 hover:bg-transparent">
             <TableHead className="w-10 text-center text-muted-foreground">순위</TableHead>
-            <TableHead className="text-muted-foreground">선수/팀</TableHead>
+            <TableHead className="text-muted-foreground">{isTeam ? '팀' : '선수'}</TableHead>
             <TableHead className="text-center text-muted-foreground">승</TableHead>
             <TableHead className="text-center text-muted-foreground">패</TableHead>
-            <TableHead className="text-center text-muted-foreground hidden sm:table-cell">세트</TableHead>
-            <TableHead className="text-center text-muted-foreground hidden md:table-cell">점수</TableHead>
+            <TableHead className="text-center text-muted-foreground hidden sm:table-cell">
+              {isTeam ? '경기' : '세트'}
+            </TableHead>
+            {!isTeam && (
+              <TableHead className="text-center text-muted-foreground hidden md:table-cell">점수</TableHead>
+            )}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -66,9 +72,11 @@ export default function StandingsTable({
                 <TableCell className="text-center text-sm hidden sm:table-cell">
                   {row.sets_won}<span className="text-muted-foreground">/{row.sets_lost}</span>
                 </TableCell>
-                <TableCell className="text-center text-sm hidden md:table-cell">
-                  {row.points_won}<span className="text-muted-foreground">/{row.points_lost}</span>
-                </TableCell>
+                {!isTeam && (
+                  <TableCell className="text-center text-sm hidden md:table-cell">
+                    {row.points_won}<span className="text-muted-foreground">/{row.points_lost}</span>
+                  </TableCell>
+                )}
               </TableRow>
             )
           })}

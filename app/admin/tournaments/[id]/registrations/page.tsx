@@ -280,7 +280,9 @@ export default function RegistrationsPage({ params }: { params: Promise<{ id: st
                               {t.club && <span className="text-xs text-muted-foreground">{t.club}</span>}
                             </div>
                             <div className="text-xs text-muted-foreground mt-0.5 pl-5">
-                              {[...(t.members)].sort((a, b) => a.player_order - b.player_order).map(m => m.player_name).join(' · ')}
+                              {[...(t.members)].sort((a, b) => a.player_order - b.player_order)
+                                .map(m => m.player_level ? `${m.player_name}(${m.player_level}부)` : m.player_name)
+                                .join(' · ')}
                               <span className="ml-1.5 text-white/30">({t.members.length}명)</span>
                             </div>
                             <div className="text-xs text-white/30 mt-0.5 pl-5 flex items-center gap-1">

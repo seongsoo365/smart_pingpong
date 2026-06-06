@@ -360,6 +360,9 @@ function IndividualSection({ supabase, divId }: { supabase: ReturnType<typeof cr
 // ─── 단체전 섹션 ─────────────────────────────────────────────────────────────
 
 interface TeamWithMembers extends Team { members: TeamMember[] }
+interface MemberInput { name: string; level: number | '' }
+
+const emptyMember = (): MemberInput => ({ name: '', level: '' })
 
 function TeamSection({ supabase, div }: { supabase: ReturnType<typeof createClient>; div: Division }) {
   const teamSize = getTeamSize(div.team_match_format)
@@ -368,13 +371,13 @@ function TeamSection({ supabase, div }: { supabase: ReturnType<typeof createClie
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [editClub, setEditClub] = useState('')
-  const [editMembers, setEditMembers] = useState<string[]>([])
+  const [editMembers, setEditMembers] = useState<MemberInput[]>([])
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   // Add form state
   const [newName, setNewName] = useState('')
   const [newClub, setNewClub] = useState('')
-  const [newMembers, setNewMembers] = useState<string[]>(() => Array(teamSize.min).fill(''))
+  const [newMembers, setNewMembers] = useState<MemberInput[]>(() => Array.from({ length: teamSize.min }, emptyMember))
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -393,7 +396,7 @@ function TeamSection({ supabase, div }: { supabase: ReturnType<typeof createClie
 
   async function addTeam(e: React.FormEvent) {
     e.preventDefault()
-    const validMembers = newMembers.map(n => n.trim()).filter(Boolean)
+    const validMembers = newMembers.filter(m => m.name.trim())
     if (!newName.trim()) { toast.error('팀명을 입력하세요'); return }
     if (validMembers.length < teamSize.min) {
       toast.error(`선수를 최소 ${teamSize.min}명 입력하세요`); return
@@ -407,12 +410,15 @@ function TeamSection({ supabase, div }: { supabase: ReturnType<typeof createClie
 
     if (tErr || !team) { toast.error('추가 실패: ' + tErr?.message); setLoading(false); return }
 
-    const memberRows = validMembers.map((player_name, i) => ({ team_id: team.id, player_name, player_order: i + 1 }))
+    const memberRows = validMembers.map((m, i) => ({
+      team_id: team.id, player_name: m.name.trim(),
+      player_order: i + 1, player_level: m.level !== '' ? m.level : null,
+    }))
     const { error: mErr } = await supabase.from('team_members').insert(memberRows)
     if (mErr) { toast.error('선수 등록 실패: ' + mErr.message); setLoading(false); return }
 
     toast.success(`${team.name} 팀을 등록했습니다`)
-    setNewName(''); setNewClub(''); setNewMembers(Array(teamSize.min).fill(''))
+    setNewName(''); setNewClub(''); setNewMembers(Array.from({ length: teamSize.min }, emptyMember))
     await loadTeams()
     setLoading(false)
   }
@@ -440,14 +446,14 @@ function TeamSection({ supabase, div }: { supabase: ReturnType<typeof createClie
     setEditName(team.name)
     setEditClub(team.club ?? '')
     const sorted = [...(team.members ?? [])].sort((a, b) => a.player_order - b.player_order)
-    setEditMembers(sorted.map(m => m.player_name))
+    setEditMembers(sorted.map(m => ({ name: m.player_name, level: m.player_level ?? '' })))
     setExpandedId(team.id)
   }
 
   async function saveTeam(e: React.FormEvent) {
     e.preventDefault()
     if (!editingId || !editName.trim()) return
-    const validMembers = editMembers.map(n => n.trim()).filter(Boolean)
+    const validMembers = editMembers.filter(m => m.name.trim())
     if (validMembers.length < teamSize.min) {
       toast.error(`선수를 최소 ${teamSize.min}명 입력하세요`); return
     }
@@ -458,7 +464,10 @@ function TeamSection({ supabase, div }: { supabase: ReturnType<typeof createClie
     if (tErr) { toast.error('수정 실패: ' + tErr.message); return }
 
     await supabase.from('team_members').delete().eq('team_id', editingId)
-    const memberRows = validMembers.map((player_name, i) => ({ team_id: editingId, player_name, player_order: i + 1 }))
+    const memberRows = validMembers.map((m, i) => ({
+      team_id: editingId, player_name: m.name.trim(),
+      player_order: i + 1, player_level: m.level !== '' ? m.level : null,
+    }))
     const { error: mErr } = await supabase.from('team_members').insert(memberRows)
     if (mErr) { toast.error('선수 수정 실패: ' + mErr.message); return }
 
@@ -468,12 +477,14 @@ function TeamSection({ supabase, div }: { supabase: ReturnType<typeof createClie
   }
 
   // Add form member helpers
-  function updateNewMember(idx: number, val: string) {
-    setNewMembers(prev => prev.map((n, i) => i === idx ? val : n))
+  function updateNewMember(idx: number, field: keyof MemberInput, val: string) {
+    setNewMembers(prev => prev.map((m, i) => i === idx
+      ? { ...m, [field]: field === 'level' ? (val ? Number(val) : '') : val }
+      : m))
   }
   function addNewMember() {
     if (newMembers.length >= teamSize.max) return
-    setNewMembers(prev => [...prev, ''])
+    setNewMembers(prev => [...prev, emptyMember()])
   }
   function removeNewMember(idx: number) {
     if (newMembers.length <= teamSize.min) return
@@ -481,12 +492,14 @@ function TeamSection({ supabase, div }: { supabase: ReturnType<typeof createClie
   }
 
   // Edit form member helpers
-  function updateEditMember(idx: number, val: string) {
-    setEditMembers(prev => prev.map((n, i) => i === idx ? val : n))
+  function updateEditMember(idx: number, field: keyof MemberInput, val: string) {
+    setEditMembers(prev => prev.map((m, i) => i === idx
+      ? { ...m, [field]: field === 'level' ? (val ? Number(val) : '') : val }
+      : m))
   }
   function addEditMember() {
     if (editMembers.length >= teamSize.max) return
-    setEditMembers(prev => [...prev, ''])
+    setEditMembers(prev => [...prev, emptyMember()])
   }
   function removeEditMember(idx: number) {
     if (editMembers.length <= teamSize.min) return
@@ -526,12 +539,18 @@ function TeamSection({ supabase, div }: { supabase: ReturnType<typeof createClie
                     </div>
                     <div className="space-y-1.5">
                       <p className="text-xs text-muted-foreground">선수 명단</p>
-                      {editMembers.map((name, idx) => (
+                      {editMembers.map((member, idx) => (
                         <div key={idx} className="flex items-center gap-2">
                           <span className="text-xs text-muted-foreground w-4 text-right shrink-0">{idx + 1}</span>
-                          <input value={name} onChange={e => updateEditMember(idx, e.target.value)}
+                          <input value={member.name} onChange={e => updateEditMember(idx, 'name', e.target.value)}
                             placeholder={`선수 ${idx + 1}`}
                             className="flex-1 glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary" />
+                          <input type="number" min={1} max={99}
+                            value={member.level}
+                            onChange={e => updateEditMember(idx, 'level', e.target.value)}
+                            placeholder="-"
+                            className="w-12 text-center glass border border-white/10 rounded-lg px-1 py-1.5 text-sm bg-transparent outline-none focus:border-primary" />
+                          <span className="text-xs text-muted-foreground shrink-0">부</span>
                           {editMembers.length > teamSize.min && (
                             <button type="button" onClick={() => removeEditMember(idx)}
                               className="p-1 text-muted-foreground hover:text-destructive transition-colors shrink-0">
@@ -617,7 +636,12 @@ function TeamSection({ supabase, div }: { supabase: ReturnType<typeof createClie
                           {[...(team.members ?? [])].sort((a, b) => a.player_order - b.player_order).map(m => (
                             <div key={m.id} className="flex items-center gap-2 text-sm text-muted-foreground">
                               <span className="w-4 text-right text-xs">{m.player_order}</span>
-                              <span className="text-foreground">{m.player_name}</span>
+                              <span className="text-foreground">
+                                {m.player_name}
+                                {m.player_level && (
+                                  <span className="text-xs text-muted-foreground ml-1">({m.player_level}부)</span>
+                                )}
+                              </span>
                             </div>
                           ))}
                         </div>
@@ -660,12 +684,18 @@ function TeamSection({ supabase, div }: { supabase: ReturnType<typeof createClie
               {teamSize.min !== teamSize.max && ` / 최소 ${teamSize.min}명`})
             </span>
           </p>
-          {newMembers.map((name, idx) => (
+          {newMembers.map((member, idx) => (
             <div key={idx} className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground w-4 text-right shrink-0">{idx + 1}</span>
-              <input value={name} onChange={e => updateNewMember(idx, e.target.value)}
+              <input value={member.name} onChange={e => updateNewMember(idx, 'name', e.target.value)}
                 placeholder={`선수 ${idx + 1} 이름`}
                 className="flex-1 glass border border-white/10 rounded-xl px-4 py-2.5 text-sm bg-transparent outline-none focus:border-primary" />
+              <input type="number" min={1} max={99}
+                value={member.level}
+                onChange={e => updateNewMember(idx, 'level', e.target.value)}
+                placeholder="-"
+                className="w-14 text-center glass border border-white/10 rounded-xl px-2 py-2.5 text-sm bg-transparent outline-none focus:border-primary" />
+              <span className="text-xs text-muted-foreground shrink-0">부</span>
               {newMembers.length > teamSize.min && (
                 <button type="button" onClick={() => removeNewMember(idx)}
                   className="p-2 text-muted-foreground hover:text-destructive transition-colors shrink-0">
