@@ -37,9 +37,7 @@ export default async function HomePage() {
         <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight">
           Smart Pingpong
         </h1>
-        <p className="text-muted-foreground text-lg max-w-md mx-auto">
-          대진표 자동 생성, 실시간 결과 입력, 대회 이력 조회까지
-        </p>
+    
         <div className="flex items-center justify-center gap-3 flex-wrap">
           <Link href="/tournaments"
             className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-xl font-semibold hover:bg-primary/90 transition-colors">

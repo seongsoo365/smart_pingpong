@@ -8,6 +8,7 @@ const navLinks = [
   { href: '/',            label: '홈' },
   { href: '/tournaments', label: '대회 목록' },
   { href: '/results',     label: '결과 이력' },
+  { href: '/players',     label: '전적 조회' },
 ]
 
 export default function Header() {

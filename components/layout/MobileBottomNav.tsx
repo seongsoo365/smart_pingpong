@@ -1,13 +1,14 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Trophy, History, Settings } from 'lucide-react'
+import { Home, Trophy, History, Users, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
   { href: '/',             icon: Home,     label: '홈' },
   { href: '/tournaments',  icon: Trophy,   label: '대회' },
   { href: '/results',      icon: History,  label: '결과' },
+  { href: '/players',      icon: Users,    label: '전적' },
   { href: '/admin',        icon: Settings, label: '관리' },
 ]
 
