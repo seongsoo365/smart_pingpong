@@ -36,6 +36,7 @@ export default function RegisterPage() {
   // common
   const [divisionId, setDivisionId] = useState('')
   const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
 
   // individual
   const [name, setName] = useState('')
@@ -113,7 +114,7 @@ export default function RegisterPage() {
 
       const { data: team, error: tErr } = await supabase
         .from('teams')
-        .insert({ division_id: divisionId, name: teamName.trim(), club: teamClub.trim() || null, confirmed: false })
+        .insert({ division_id: divisionId, name: teamName.trim(), club: teamClub.trim() || null, email: email.trim() || null, confirmed: false })
         .select()
         .single()
 
@@ -143,6 +144,7 @@ export default function RegisterPage() {
         name: name.trim(),
         club: club.trim() || null,
         phone: phone.trim() || null,
+        email: email.trim() || null,
         confirmed: false,
       })
       if (error) { toast.error('접수 실패: ' + error.message); setLoading(false); return }
@@ -154,7 +156,7 @@ export default function RegisterPage() {
 
   function resetForm() {
     setSubmitted(false)
-    setName(''); setClub(''); setPhone('')
+    setName(''); setClub(''); setPhone(''); setEmail('')
     setTeamName(''); setTeamClub('')
     setMembers([{ name: '', level: '' }, { name: '', level: '' }, { name: '', level: '' }])
     if (selectedDiv) selectDivision(selectedDiv)
@@ -298,6 +300,12 @@ export default function RegisterPage() {
                   placeholder="010-0000-0000"
                   className="w-full glass border border-white/10 rounded-xl px-4 py-2.5 text-sm bg-transparent outline-none focus:border-primary" />
               </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">이메일 <span className="text-muted-foreground font-normal">(선택 — 승인 결과 수신)</span></label>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                  placeholder="example@email.com"
+                  className="w-full glass border border-white/10 rounded-xl px-4 py-2.5 text-sm bg-transparent outline-none focus:border-primary" />
+              </div>
             </>
           ) : (
             /* Individual registration fields */
@@ -318,6 +326,12 @@ export default function RegisterPage() {
                 <label className="text-sm font-medium">연락처 <span className="text-muted-foreground font-normal">(선택)</span></label>
                 <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
                   placeholder="010-0000-0000"
+                  className="w-full glass border border-white/10 rounded-xl px-4 py-2.5 text-sm bg-transparent outline-none focus:border-primary" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">이메일 <span className="text-muted-foreground font-normal">(선택 — 승인 결과 수신)</span></label>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                  placeholder="example@email.com"
                   className="w-full glass border border-white/10 rounded-xl px-4 py-2.5 text-sm bg-transparent outline-none focus:border-primary" />
               </div>
             </>

@@ -1,6 +1,6 @@
 # Smart Pingpong 로드맵
 
-> 마지막 업데이트: 2026-06-07 (6차 — 단체전 부수 표시, 대진표 버그 수정, 단계 설정 UI 추가)  
+> 마지막 업데이트: 2026-06-07 (8차 — FEAT-07 통합 부수 관리 UI, FEAT-09 승인/거절 이메일 알림)  
 > 상태 표시: ✅ 완료 · 🔄 진행 중 · ⬜ 예정 · ❌ 보류
 
 ---
@@ -118,7 +118,7 @@ SUPABASE_SERVICE_ROLE_KEY      = eyJ...   ← 서버 전용, NEXT_PUBLIC_ 붙이
 |---|------|------|
 | FEAT-01 | 선수 일괄 등록 (`이름,소속` 붙여넣기, 중복 경고, 미리보기) | ✅ |
 | FEAT-02 | 세트별 점수 입력 (11-9, 8-11 형식, `match_sets` 저장) | ✅ |
-| FEAT-03 | 대회 로고 이미지 업로드 (Supabase Storage) | ⬜ |
+| FEAT-03 | 대회 로고 이미지 업로드 (Supabase Storage) | ❌ |
 | FEAT-04 | 커스텀 404 / 에러 페이지 | ✅ |
 | FEAT-08 | 단계 설정 UI — 부수별 예선/본선 방식·게임 수·점수·진출 수 관리자 편집 및 공개 표시 | ✅ |
 
@@ -146,21 +146,24 @@ SUPABASE_SERVICE_ROLE_KEY      = eyJ...   ← 서버 전용, NEXT_PUBLIC_ 붙이
 - 공개 부수 상세 페이지를 클라이언트 컴포넌트로 전환
 - `supabase.channel().on('postgres_changes', ...)` 구독
 - `matches` 변경 시 브라켓·순위표 자동 갱신
-- **상태:** ⬜
+- **상태:** ✅
 
 ---
 
 ### FEAT-07 · 통합 부수(DivisionMerge) 관리 UI
 - `division_merges` 테이블은 존재하나 관리자 UI 없음
 - 편집 페이지 하단에 통합 부수 섹션 추가
-- **상태:** ⬜
+- **상태:** ✅
 
 ---
 
-### FEAT-09 · 승인/거절 알림 연동 (선택)
-- 참가 신청 승인·거절 시 이메일 또는 문자 발송
-- Supabase Edge Functions 또는 외부 메시지 API 활용
-- **상태:** ⬜
+### FEAT-09 · 승인/거절 알림 연동
+- 참가 신청 승인·거절 시 이메일 발송 (Resend API)
+- `players.email` / `teams.email` 컬럼 추가 (migration 009)
+- 공개 신청 폼에 이메일 입력 필드 추가 (선택)
+- `/api/notify` 라우트 — `RESEND_API_KEY` 없으면 silent skip
+- 개별/일괄 승인, 거절 모두 지원
+- **상태:** ✅
 
 ---
 

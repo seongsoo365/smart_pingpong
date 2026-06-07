@@ -85,6 +85,7 @@ export interface Player {
   name: string
   club?: string
   phone?: string
+  email?: string
   seed?: number
   group_id?: string
   confirmed: boolean
@@ -98,6 +99,7 @@ export interface Team {
   division_id: string
   name: string
   club?: string
+  email?: string
   seed?: number
   group_id?: string
   confirmed: boolean

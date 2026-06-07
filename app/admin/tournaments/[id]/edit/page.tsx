@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { ChevronLeft, Users, GitBranch, ClipboardList, Plus, Trash2, Save, ExternalLink, Pencil, Check, X, FileCheck, Settings2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import type { Tournament, Division, TournamentPhase, Gender, MatchType, TeamMatchFormat, PhaseFormat } from '@/lib/types'
+import type { Tournament, Division, DivisionMerge, TournamentPhase, Gender, MatchType, TeamMatchFormat, PhaseFormat } from '@/lib/types'
 
 const genderLabel: Record<string, string> = { male: '남자', female: '여자', mixed: '혼합' }
 const matchTypeLabel: Record<string, string> = { individual: '개인전', team: '단체전' }
@@ -62,11 +62,17 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
   const [phaseEdit, setPhaseEdit] = useState<PhaseEdit>(defaultPhaseEdit())
   const [savingPhase, setSavingPhase] = useState(false)
 
+  const [merges, setMerges] = useState<DivisionMerge[]>([])
+  const [showMergeForm, setShowMergeForm] = useState(false)
+  const [newMerge, setNewMerge] = useState<{ name: string; divisionIds: string[] }>({ name: '', divisionIds: [] })
+  const [addingMerge, setAddingMerge] = useState(false)
+
   useEffect(() => {
     async function load() {
-      const [{ data: t }, { data: d }] = await Promise.all([
+      const [{ data: t }, { data: d }, { data: m }] = await Promise.all([
         supabase.from('tournaments').select('*').eq('id', id).single(),
         supabase.from('divisions').select('*').eq('tournament_id', id).order('display_order'),
+        supabase.from('division_merges').select('*').eq('tournament_id', id),
       ])
       if (t) {
         setTournament(t)
@@ -81,6 +87,7 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
           status: t.status ?? 'draft',
         })
       }
+      setMerges(m ?? [])
       const divList = d ?? []
       setDivisions(divList)
       if (divList.length > 0) {
@@ -261,6 +268,33 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
     setSavingPhase(false)
     setEditingPhaseDivId(null)
     toast.success('단계 설정이 저장되었습니다')
+  }
+
+  async function handleAddMerge(e: React.FormEvent) {
+    e.preventDefault()
+    if (!newMerge.name.trim() || newMerge.divisionIds.length < 2) {
+      toast.error('이름을 입력하고 2개 이상의 부수를 선택하세요')
+      return
+    }
+    setAddingMerge(true)
+    const { data, error } = await supabase
+      .from('division_merges')
+      .insert({ tournament_id: id, name: newMerge.name.trim(), division_ids: newMerge.divisionIds })
+      .select().single()
+    if (error) { toast.error('추가 실패: ' + error.message); setAddingMerge(false); return }
+    setMerges(prev => [...prev, data as DivisionMerge])
+    setNewMerge({ name: '', divisionIds: [] })
+    setShowMergeForm(false)
+    toast.success('통합 부수가 추가되었습니다')
+    setAddingMerge(false)
+  }
+
+  async function handleDeleteMerge(merge: DivisionMerge) {
+    if (!confirm(`"${merge.name}" 통합 부수를 삭제하시겠습니까?`)) return
+    const { error } = await supabase.from('division_merges').delete().eq('id', merge.id)
+    if (error) { toast.error('삭제 실패'); return }
+    setMerges(prev => prev.filter(m => m.id !== merge.id))
+    toast.success('통합 부수가 삭제되었습니다')
   }
 
   function phaseSummary(divId: string) {
@@ -648,6 +682,101 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
                 {addingDiv ? '...' : '추가'}
               </button>
               <button type="button" onClick={() => { setShowDivForm(false); setNewDiv(defaultNewDiv()) }}
+                className="flex-1 glass border border-white/10 py-2 rounded-lg text-sm hover:bg-white/10 transition-colors">
+                취소
+              </button>
+            </div>
+          </form>
+        )}
+      </section>
+      {/* Division Merge Management */}
+      <section className="glass rounded-2xl p-6 border border-white/10 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-semibold">통합 부수 ({merges.length}개)</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">여러 부수를 하나의 대진표로 통합합니다</p>
+          </div>
+          {divisions.length >= 2 && (
+            <button onClick={() => setShowMergeForm(!showMergeForm)}
+              className="inline-flex items-center gap-1.5 text-sm text-primary hover:opacity-80 transition-opacity">
+              <Plus className="w-4 h-4" /> 통합 추가
+            </button>
+          )}
+        </div>
+
+        {merges.length > 0 ? (
+          <div className="space-y-2">
+            {merges.map(merge => {
+              const mergedDivs = divisions.filter(d => merge.division_ids.includes(d.id))
+              return (
+                <div key={merge.id} className="flex items-center justify-between px-4 py-3 rounded-xl bg-white/5">
+                  <div>
+                    <p className="font-medium">{merge.name}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {mergedDivs.length > 0
+                        ? mergedDivs.map(d => `${genderLabel[d.gender]} ${d.name}`).join(' + ')
+                        : '(부수 정보 없음)'}
+                    </p>
+                  </div>
+                  <button onClick={() => handleDeleteMerge(merge)}
+                    className="p-1.5 text-muted-foreground hover:text-destructive transition-colors">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground text-center py-2">등록된 통합 부수가 없습니다</p>
+        )}
+
+        {divisions.length < 2 && merges.length === 0 && (
+          <p className="text-xs text-muted-foreground text-center">부수가 2개 이상 있어야 통합 부수를 만들 수 있습니다</p>
+        )}
+
+        {showMergeForm && (
+          <form onSubmit={handleAddMerge} className="border-t border-white/10 pt-4 space-y-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">통합 부수명 *</label>
+              <input
+                value={newMerge.name}
+                onChange={e => setNewMerge(p => ({ ...p, name: e.target.value }))}
+                placeholder="예) 통합 1부"
+                required
+                className="w-full glass border border-white/10 rounded-lg px-3 py-2 text-sm bg-transparent outline-none focus:border-primary"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">합칠 부수 선택 * (2개 이상)</label>
+              <div className="space-y-1 max-h-48 overflow-y-auto">
+                {divisions.map(div => (
+                  <label key={div.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 cursor-pointer hover:bg-white/10 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={newMerge.divisionIds.includes(div.id)}
+                      onChange={e => setNewMerge(p => ({
+                        ...p,
+                        divisionIds: e.target.checked
+                          ? [...p.divisionIds, div.id]
+                          : p.divisionIds.filter(did => did !== div.id),
+                      }))}
+                      className="accent-primary"
+                    />
+                    <span className="text-sm">{genderLabel[div.gender]} {div.name}</span>
+                    <span className="text-xs text-muted-foreground">{matchTypeLabel[div.match_type]}</span>
+                  </label>
+                ))}
+              </div>
+              {newMerge.divisionIds.length > 0 && newMerge.divisionIds.length < 2 && (
+                <p className="text-xs text-accent px-1">2개 이상 선택하세요</p>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button type="submit" disabled={addingMerge}
+                className="flex-1 bg-primary text-primary-foreground py-2 rounded-lg text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60">
+                {addingMerge ? '...' : '추가'}
+              </button>
+              <button type="button" onClick={() => { setShowMergeForm(false); setNewMerge({ name: '', divisionIds: [] }) }}
                 className="flex-1 glass border border-white/10 py-2 rounded-lg text-sm hover:bg-white/10 transition-colors">
                 취소
               </button>

@@ -15,6 +15,7 @@ export default function RegistrationsPage({ params }: { params: Promise<{ id: st
   const { id } = use(params)
   const supabase = createClient()
 
+  const [tournamentName, setTournamentName] = useState('')
   const [divisions, setDivisions] = useState<Division[]>([])
   const [pendingPlayers, setPendingPlayers] = useState<PendingPlayer[]>([])
   const [pendingTeams, setPendingTeams] = useState<PendingTeam[]>([])
@@ -25,8 +26,11 @@ export default function RegistrationsPage({ params }: { params: Promise<{ id: st
 
   async function load() {
     setLoading(true)
-    const { data: divs } = await supabase
-      .from('divisions').select('*').eq('tournament_id', id).order('display_order')
+    const [{ data: divs }, { data: t }] = await Promise.all([
+      supabase.from('divisions').select('*').eq('tournament_id', id).order('display_order'),
+      supabase.from('tournaments').select('name').eq('id', id).single(),
+    ])
+    if (t?.name) setTournamentName(t.name)
     if (!divs?.length) { setLoading(false); return }
 
     const divMap = new Map(divs.map(d => [d.id, d]))
@@ -71,6 +75,7 @@ export default function RegistrationsPage({ params }: { params: Promise<{ id: st
     if (error) { toast.error('승인 실패: ' + error.message); return }
     setPendingPlayers(prev => prev.filter(x => x.id !== p.id))
     toast.success(`${p.name} 선수를 승인했습니다`)
+    notify('approved', p.email, p.name, p.division)
   }
 
   async function rejectPlayer(p: PendingPlayer) {
@@ -79,6 +84,7 @@ export default function RegistrationsPage({ params }: { params: Promise<{ id: st
     if (error) { toast.error('거절 실패'); return }
     setPendingPlayers(prev => prev.filter(x => x.id !== p.id))
     toast.success(`${p.name} 신청을 거절했습니다`)
+    notify('rejected', p.email, p.name, p.division)
   }
 
   async function approveAllPlayers(divId: string) {
@@ -89,6 +95,7 @@ export default function RegistrationsPage({ params }: { params: Promise<{ id: st
     if (error) { toast.error('일괄 승인 실패'); return }
     setPendingPlayers(prev => prev.filter(p => !ids.includes(p.id)))
     toast.success(`${targets.length}명을 일괄 승인했습니다`)
+    targets.forEach(p => notify('approved', p.email, p.name, p.division))
   }
 
   // --- Team actions ---
@@ -104,6 +111,7 @@ export default function RegistrationsPage({ params }: { params: Promise<{ id: st
     setPendingTeams(prev => prev.filter(x => x.id !== t.id))
     setApprovedTeamCounts(prev => ({ ...prev, [t.division_id]: (prev[t.division_id] ?? 0) + 1 }))
     toast.success(`${t.name} 팀을 승인했습니다`)
+    notify('approved', t.email, t.name, div)
   }
 
   async function rejectTeam(t: PendingTeam) {
@@ -112,6 +120,7 @@ export default function RegistrationsPage({ params }: { params: Promise<{ id: st
     if (error) { toast.error('거절 실패'); return }
     setPendingTeams(prev => prev.filter(x => x.id !== t.id))
     toast.success(`${t.name} 팀 신청을 거절했습니다`)
+    notify('rejected', t.email, t.name, divisions.find(d => d.id === t.division_id))
   }
 
   // 시간순 1팀씩 승인 (신청이 가장 이른 팀 → 빈 슬롯만큼)
@@ -133,6 +142,22 @@ export default function RegistrationsPage({ params }: { params: Promise<{ id: st
     setPendingTeams(prev => prev.filter(t => !ids.includes(t.id)))
     setApprovedTeamCounts(prev => ({ ...prev, [divId]: (prev[divId] ?? 0) + toApprove.length }))
     toast.success(`${toApprove.length}팀을 시간순으로 승인했습니다`)
+    toApprove.forEach(t => notify('approved', t.email, t.name, div))
+  }
+
+  function notify(type: 'approved' | 'rejected', email: string | undefined, name: string, division?: Division) {
+    if (!email) return
+    fetch('/api/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type,
+        email,
+        name,
+        tournamentName,
+        divisionName: division ? `${genderLabel[division.gender]} ${division.name}` : '',
+      }),
+    })
   }
 
   const filteredPlayers = selectedDivId === 'all' ? pendingPlayers : pendingPlayers.filter(p => p.division_id === selectedDivId)
@@ -206,6 +231,7 @@ export default function RegistrationsPage({ params }: { params: Promise<{ id: st
                         <div className="text-xs text-muted-foreground space-x-2">
                           {p.club && <span>{p.club}</span>}
                           {p.phone && <span>{p.phone}</span>}
+                          {p.email && <span className="text-primary/70">{p.email}</span>}
                           <span className="text-white/30">{new Date(p.created_at).toLocaleDateString('ko-KR')}</span>
                         </div>
                       </div>

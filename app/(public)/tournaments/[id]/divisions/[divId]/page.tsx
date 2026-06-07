@@ -2,13 +2,8 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { createClientSafe } from '@/lib/supabase/server'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import StandingsTable from '@/components/tournament/StandingsTable'
-import BracketView from '@/components/tournament/BracketView'
-import GroupMatrix from '@/components/tournament/GroupMatrix'
-
-import { calculateStandings } from '@/lib/utils/standings'
-import type { Player, Team, Match, MatchSet, Group, Standing } from '@/lib/types'
+import DivisionRealtimeContent from '@/components/tournament/DivisionRealtimeContent'
+import type { Player, Team, Match, Group, Standing } from '@/lib/types'
 
 const genderLabel: Record<string, string> = { male: '남자', female: '여자', mixed: '혼합' }
 const matchTypeLabel: Record<string, string> = { individual: '개인전', team: '단체전' }
@@ -76,25 +71,6 @@ export default async function DivisionDetailPage({
   const { data: storedStandings } = groupIds.length > 0
     ? await supabase.from('standings').select('*').in('group_id', groupIds)
     : { data: [] as Standing[] }
-
-  const pMap = new Map(participants.map(p => [p.id, p]))
-  const getName = (pid?: string) => pid ? (pMap.get(pid) as Player | Team | undefined)?.name : undefined
-  const getClub = (pid?: string) => pid ? (pMap.get(pid) as Player | Team | undefined)?.club : undefined
-
-  const annotatedMain = (mainMatches ?? []).map((m: Match) => ({
-    ...m,
-    p1Name: getName(m.participant1_id),
-    p1Club: getClub(m.participant1_id),
-    p2Name: getName(m.participant2_id),
-    p2Club: getClub(m.participant2_id),
-    sets: m.sets as MatchSet[],
-  }))
-
-  const mainRounds = mainMatches && mainMatches.length > 0
-    ? Math.max(...(mainMatches as Match[]).map(m => m.round))
-    : 0
-  const hasPrelim = (groups?.length ?? 0) > 0
-  const hasMain = (mainMatches?.length ?? 0) > 0
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
@@ -178,81 +154,17 @@ export default async function DivisionDetailPage({
         )}
       </section>
 
-      {(hasPrelim || hasMain) && (
-        <Tabs defaultValue={hasPrelim ? 'prelim' : 'main'}>
-          <TabsList className="glass border border-white/10">
-            {hasPrelim && <TabsTrigger value="prelim">예선전</TabsTrigger>}
-            {hasMain && <TabsTrigger value="main">본선</TabsTrigger>}
-          </TabsList>
-
-          {hasPrelim && (
-            <TabsContent value="prelim" className="space-y-6 mt-4">
-              {(groups ?? []).map((group: Group) => {
-                const groupMatches = (prelimMatches ?? []).filter((m: Match) => m.group_id === group.id)
-                const ids = [...new Set([
-                  ...groupMatches.map((m: Match) => m.participant1_id),
-                  ...groupMatches.map((m: Match) => m.participant2_id),
-                ].filter(Boolean))] as string[]
-
-                const groupStoredStandings = (storedStandings ?? []).filter(
-                  (s: Standing) => s.group_id === group.id
-                )
-
-                let rows: { ranking: number; participant_id: string; name: string; club?: string; wins: number; losses: number; sets_won: number; sets_lost: number; points_won: number; points_lost: number }[]
-
-                if (groupStoredStandings.length >= ids.length && ids.length > 0) {
-                  rows = groupStoredStandings
-                    .sort((a: Standing, b: Standing) => a.ranking - b.ranking)
-                    .map((s: Standing) => ({
-                      ...s,
-                      name: getName(s.participant_id) ?? '?',
-                      club: getClub(s.participant_id),
-                    }))
-                } else {
-                  rows = calculateStandings(groupMatches as Match[], ids).map(s => ({
-                    ...s,
-                    name: getName(s.participant_id) ?? '?',
-                    club: getClub(s.participant_id),
-                  }))
-                }
-
-                const orderedParticipants = rows.map(r => ({
-                  id: r.participant_id,
-                  name: r.name,
-                  club: r.club,
-                }))
-
-                return (
-                  <div key={group.id} className="space-y-3">
-                    <h3 className="font-bold">{group.name}</h3>
-                    <StandingsTable
-                      rows={rows}
-                      advanceCount={prelim?.advancement_count ?? 2}
-                      isTeam={!isIndividual}
-                    />
-                    {groupMatches.some((m: Match) => m.status === 'completed') && (
-                      <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground font-medium px-1">상대 전적</p>
-                        <GroupMatrix
-                          participants={orderedParticipants}
-                          matches={groupMatches as Match[]}
-                          participantLabel={isIndividual ? '선수' : '팀'}
-                        />
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </TabsContent>
-          )}
-
-          {hasMain && (
-            <TabsContent value="main" className="mt-4">
-              <BracketView matches={annotatedMain} totalRounds={mainRounds} isTeam={!isIndividual} />
-            </TabsContent>
-          )}
-        </Tabs>
-      )}
+      <DivisionRealtimeContent
+        divId={divId}
+        prelim={prelim}
+        main={main}
+        initialPrelimMatches={(prelimMatches ?? []) as Match[]}
+        initialMainMatches={(mainMatches ?? []) as Match[]}
+        groups={(groups ?? []) as Group[]}
+        initialStandings={(storedStandings ?? []) as Standing[]}
+        participants={participants}
+        isIndividual={isIndividual}
+      />
     </div>
   )
 }
