@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, Users, GitBranch, ClipboardList, Plus, Trash2, Save, ExternalLink, Pencil, Check, X, FileCheck, Settings2 } from 'lucide-react'
+import { ChevronLeft, Users, GitBranch, ClipboardList, Plus, Trash2, Save, ExternalLink, Pencil, Check, X, FileCheck, Settings2, MessageCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { Tournament, Division, DivisionMerge, TournamentPhase, Gender, MatchType, TeamMatchFormat, PhaseFormat } from '@/lib/types'
@@ -338,10 +338,11 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
       {/* Quick Actions */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { href: `/admin/tournaments/${id}/players`,       icon: Users,        label: '선수 관리' },
-          { href: `/admin/tournaments/${id}/registrations`, icon: FileCheck,    label: '접수 관리' },
-          { href: `/admin/tournaments/${id}/draw`,          icon: GitBranch,    label: '대진표 생성' },
-          { href: `/admin/tournaments/${id}/scores`,        icon: ClipboardList,label: '결과 입력' },
+          { href: `/admin/tournaments/${id}/players`,       icon: Users,          label: '선수 관리' },
+          { href: `/admin/tournaments/${id}/registrations`, icon: FileCheck,     label: '접수 관리' },
+          { href: `/admin/tournaments/${id}/draw`,          icon: GitBranch,     label: '대진표 생성' },
+          { href: `/admin/tournaments/${id}/scores`,        icon: ClipboardList, label: '결과 입력' },
+          { href: `/admin/tournaments/${id}/qna`,           icon: MessageCircle, label: 'Q&A 관리' },
         ].map(({ href, icon: Icon, label }) => (
           <Link key={href} href={href}
             className="glass rounded-xl p-4 border border-white/10 hover:bg-white/10 hover:border-primary/30 transition-all group text-center">

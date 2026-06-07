@@ -161,6 +161,19 @@ export interface Standing {
   participant?: Player | Team
 }
 
+export interface TournamentQuestion {
+  id: string
+  tournament_id: string
+  author_name: string
+  author_email?: string
+  question: string
+  answer?: string
+  answered_by?: string
+  answered_at?: string
+  is_public: boolean
+  created_at: string
+}
+
 export interface TournamentWithDivisions extends Tournament {
   divisions: (Division & {
     phases: TournamentPhase[]

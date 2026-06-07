@@ -73,10 +73,20 @@ API 라우트는 수동으로 소유권을 확인합니다 — 관리자 라우�
 2. `user_profiles.role`을 조회하여 `system_admin` 여부 확인
 3. `tournament.admin_id === user.id || tournament.created_by === user.id`로 대회 소유권 확인
 
+### Q&A 데이터 모델
+
+`tournament_questions` 테이블은 대회(tournament)에 직접 연결됩니다 (부수와 무관).
+
+- **공개 방문자**: `answer IS NOT NULL AND is_public = TRUE` 인 행만 SELECT, INSERT는 누구나 가능
+- **대회 소유자(admin_id / created_by)**: 전체 SELECT, UPDATE(답변 저장), DELETE 가능
+- 관리자 페이지(`app/admin/tournaments/[id]/qna/page.tsx`)에서 답변 저장 시 `answered_by`(auth.uid), `answered_at`도 함께 저장
+- 공개 컴포넌트: `components/tournament/QnaSection.tsx` (클라이언트 컴포넌트, 공개 대회 상세 페이지에 임베드)
+
 ### 대회 데이터 모델
 
 ```
 tournament (대회)
+  ├─ tournament_questions (Q&A, 1:N)
   └─ division (부수, 1:N)  ← match_type: 'individual' | 'team'
        ├─ [개인전] player (선수, 1:N, player.division_id)
        ├─ [단체전] team (팀, 1:N, team.division_id)

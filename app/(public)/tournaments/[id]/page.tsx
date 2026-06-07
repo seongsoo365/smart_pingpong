@@ -3,7 +3,8 @@ import Link from 'next/link'
 import { Calendar, MapPin, ChevronRight, ClipboardList, Users, Clock, ShieldCheck } from 'lucide-react'
 import { createClientSafe } from '@/lib/supabase/server'
 import { cn } from '@/lib/utils'
-import type { Division, Team, TeamMember } from '@/lib/types'
+import type { Division, Team, TeamMember, TournamentQuestion } from '@/lib/types'
+import QnaSection from '@/components/tournament/QnaSection'
 
 const genderLabel: Record<string, string> = { male: '남자', female: '여자', mixed: '혼합' }
 const matchTypeLabel: Record<string, string> = { individual: '개인전', team: '단체전' }
@@ -30,9 +31,15 @@ export default async function TournamentDetailPage({
     .from('tournaments').select('*, admin:admin_id(name)').eq('id', id).single()
   if (!tournament) notFound()
 
-  const [{ data: divisions }, { data: merges }] = await Promise.all([
+  const [{ data: divisions }, { data: merges }, { data: questions }] = await Promise.all([
     supabase.from('divisions').select('*').eq('tournament_id', id).order('display_order'),
     supabase.from('division_merges').select('*').eq('tournament_id', id),
+    supabase.from('tournament_questions')
+      .select('*')
+      .eq('tournament_id', id)
+      .not('answer', 'is', null)
+      .eq('is_public', true)
+      .order('answered_at', { ascending: true }),
   ])
 
   const teamDivisions = (divisions ?? []).filter((d: Division) => d.match_type === 'team')
@@ -193,6 +200,11 @@ export default async function TournamentDetailPage({
           </div>
         </section>
       )}
+
+      <QnaSection
+        tournamentId={id}
+        initialQuestions={(questions ?? []) as TournamentQuestion[]}
+      />
 
       <section>
         <h2 className="text-lg font-bold mb-4">부수별 대진</h2>

@@ -1,0 +1,129 @@
+'use client'
+import { useState } from 'react'
+import { MessageCircle, ChevronDown, ChevronUp, Send } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+import { toast } from 'sonner'
+import type { TournamentQuestion } from '@/lib/types'
+
+interface Props {
+  tournamentId: string
+  initialQuestions: TournamentQuestion[]
+}
+
+export default function QnaSection({ tournamentId, initialQuestions }: Props) {
+  const supabase = createClient()
+  const [questions, setQuestions] = useState(initialQuestions)
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [form, setForm] = useState({ name: '', email: '', question: '' })
+  const [submitting, setSubmitting] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.name.trim() || !form.question.trim()) return
+    setSubmitting(true)
+    const { error } = await supabase.from('tournament_questions').insert({
+      tournament_id: tournamentId,
+      author_name: form.name.trim(),
+      author_email: form.email.trim() || null,
+      question: form.question.trim(),
+    })
+    setSubmitting(false)
+    if (error) { toast.error('질문 등록 실패: ' + error.message); return }
+    setForm({ name: '', email: '', question: '' })
+    setSubmitted(true)
+    toast.success('질문이 등록되었습니다. 관리자 답변 후 공개됩니다.')
+  }
+
+  return (
+    <section className="space-y-5">
+      <h2 className="text-lg font-bold flex items-center gap-2">
+        <MessageCircle className="w-5 h-5 text-primary" /> Q&amp;A
+      </h2>
+
+      {/* Answered questions */}
+      {questions.length > 0 ? (
+        <div className="space-y-2">
+          {questions.map(q => (
+            <div key={q.id} className="glass rounded-xl border border-white/10 overflow-hidden">
+              <button
+                className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-white/5 transition-colors"
+                onClick={() => setExpanded(expanded === q.id ? null : q.id)}
+              >
+                <span className="text-primary font-bold text-sm shrink-0 mt-0.5">Q.</span>
+                <span className="flex-1 text-sm">{q.question}</span>
+                {expanded === q.id
+                  ? <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+                  : <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />}
+              </button>
+              {expanded === q.id && (
+                <div className="px-4 pb-4 pt-2 border-t border-white/10 bg-white/[0.02]">
+                  <div className="flex gap-3">
+                    <span className="text-accent font-bold text-sm shrink-0">A.</span>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{q.answer}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">아직 답변된 질문이 없습니다.</p>
+      )}
+
+      {/* Submit form */}
+      <div className="glass rounded-xl border border-white/10 p-5">
+        <p className="text-sm font-medium mb-4">질문하기</p>
+        {submitted ? (
+          <div className="text-center py-4 space-y-2">
+            <p className="text-sm text-muted-foreground">질문이 등록되었습니다.</p>
+            <p className="text-xs text-muted-foreground/70">관리자 검토 후 답변이 공개됩니다.</p>
+            <button
+              onClick={() => setSubmitted(false)}
+              className="text-xs text-primary hover:underline mt-1"
+            >
+              추가 질문하기
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <input
+                className="glass border border-white/10 rounded-xl px-4 py-2.5 text-sm bg-transparent outline-none focus:border-primary transition-colors"
+                placeholder="이름 *"
+                value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                required
+              />
+              <input
+                className="glass border border-white/10 rounded-xl px-4 py-2.5 text-sm bg-transparent outline-none focus:border-primary transition-colors"
+                type="email"
+                placeholder="이메일 (선택)"
+                value={form.email}
+                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+              />
+            </div>
+            <textarea
+              className="w-full glass border border-white/10 rounded-xl px-4 py-2.5 text-sm bg-transparent outline-none focus:border-primary transition-colors resize-none"
+              rows={3}
+              placeholder="질문 내용을 입력해주세요 *"
+              value={form.question}
+              onChange={e => setForm(f => ({ ...f, question: e.target.value }))}
+              required
+            />
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={submitting}
+                className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              >
+                <Send className="w-3.5 h-3.5" />
+                {submitting ? '등록 중...' : '질문 등록'}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </section>
+  )
+}
