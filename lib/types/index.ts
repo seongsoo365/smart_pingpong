@@ -19,6 +19,8 @@ export interface UserProfile {
   name: string
   phone?: string
   role: UserRole
+  provider?: string
+  avatar_url?: string
   created_at: string
 }
 
