@@ -142,12 +142,14 @@ export default function ScoresPage() {
     const allMatches = m ?? []
     const mainPhase = (ph ?? []).find(p => p.phase_type === 'main')
     if (mainPhase) {
-      const byeMatches = allMatches.filter(x =>
-        x.phase_id === mainPhase.id && x.status === 'bye' && x.winner_id && x.round === 1
-      )
       const round2 = allMatches
         .filter(x => x.phase_id === mainPhase.id && x.round === 2)
         .sort((a, b) => a.match_number - b.match_number)
+
+      // Direct bracket byes (status='bye' set at draw time)
+      const byeMatches = allMatches.filter(x =>
+        x.phase_id === mainPhase.id && x.status === 'bye' && x.winner_id && x.round === 1
+      )
       for (const byeMatch of byeMatches) {
         const slot = Math.floor((byeMatch.match_number - 1) / 2)
         const next = round2[slot]
@@ -159,6 +161,34 @@ export default function ScoresPage() {
         } else if (!isP1 && !next.participant2_id) {
           await supabase.from('matches').update({ participant2_id: byeMatch.winner_id }).eq('id', next.id)
           next.participant2_id = byeMatch.winner_id
+        }
+      }
+
+      // Preliminary-path byes: round 1 matches with exactly one participant
+      // (occurs when totalAdvancing is not a power of 2 — the last slot is unpaired)
+      const singleSlotMatches = allMatches.filter(x =>
+        x.phase_id === mainPhase.id &&
+        x.round === 1 &&
+        x.status === 'pending' &&
+        !x.winner_id &&
+        ((x.participant1_id && !x.participant2_id) || (!x.participant1_id && x.participant2_id))
+      )
+      for (const match of singleSlotMatches) {
+        const participantId = match.participant1_id ?? match.participant2_id
+        if (!participantId) continue
+        await supabase.from('matches').update({ status: 'bye', winner_id: participantId }).eq('id', match.id)
+        match.status = 'bye'
+        match.winner_id = participantId
+        const slot = Math.floor((match.match_number - 1) / 2)
+        const next = round2[slot]
+        if (!next) continue
+        const isP1Slot = match.match_number % 2 === 1
+        if (isP1Slot && !next.participant1_id) {
+          await supabase.from('matches').update({ participant1_id: participantId }).eq('id', next.id)
+          next.participant1_id = participantId
+        } else if (!isP1Slot && !next.participant2_id) {
+          await supabase.from('matches').update({ participant2_id: participantId }).eq('id', next.id)
+          next.participant2_id = participantId
         }
       }
     }
@@ -307,7 +337,9 @@ export default function ScoresPage() {
 
     const phase = phases.find(p => p.id === match.phase_id)
     if (winner_id && phase?.phase_type === 'main') {
-      const nextRoundMatches = matches.filter(m => m.phase_id === match.phase_id && m.round === match.round + 1)
+      const nextRoundMatches = matches
+        .filter(m => m.phase_id === match.phase_id && m.round === match.round + 1)
+        .sort((a, b) => a.match_number - b.match_number)
       if (nextRoundMatches.length > 0) {
         const slot = Math.floor((match.match_number - 1) / 2)
         const nextMatch = nextRoundMatches[slot]
@@ -354,7 +386,9 @@ export default function ScoresPage() {
     const mainPhase = phases.find(p => p.phase_type === 'main')
     if (!mainPhase || advancers.length === 0) return
 
-    const mainMatches = matches.filter(m => m.phase_id === mainPhase.id && m.round === 1)
+    const mainMatches = matches
+      .filter(m => m.phase_id === mainPhase.id && m.round === 1)
+      .sort((a, b) => a.match_number - b.match_number)
     const groupIndex = groups.filter(g => g.phase_id === phase.id).findIndex(g => g.id === groupId)
 
     for (let i = 0; i < advancers.length; i++) {
