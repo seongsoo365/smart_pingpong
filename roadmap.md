@@ -1,6 +1,6 @@
 # Smart Pingpong 로드맵
 
-> 마지막 업데이트: 2026-06-07 (9차 — FEAT-10 Q&A 기능)  
+> 마지막 업데이트: 2026-06-08 (11차 — FEAT-18 대회 관리자 셀프 회원가입 등록)  
 > 상태 표시: ✅ 완료 · 🔄 진행 중 · ⬜ 예정 · ❌ 보류
 
 ---
@@ -128,6 +128,11 @@ SUPABASE_SERVICE_ROLE_KEY      = eyJ...   ← 서버 전용, NEXT_PUBLIC_ 붙이
 | FEAT-04 | 커스텀 404 / 에러 페이지 | ✅ |
 | FEAT-08 | 단계 설정 UI — 부수별 예선/본선 방식·게임 수·점수·진출 수 관리자 편집 및 공개 표시 | ✅ |
 | FEAT-10 | Q&A — 공개 질문 등록, 관리자 답변·비공개 설정·삭제, 대회 상세 페이지 표시 | ✅ |
+| FEAT-11 | **관리자 비밀번호 재설정** — 로그인 페이지에 "비밀번호 찾기" 추가, Supabase `resetPasswordForEmail()` 활용, 재설정 완료 페이지 | ⬜ |
+| FEAT-12 | **관리자 첫 로그인 비밀번호 변경 강제** — `user_profiles.password_changed` 컬럼 추가, 첫 로그인 시 변경 페이지 강제 이동, proxy.ts에서 리다이렉트 처리 | ⬜ |
+| FEAT-13 | **관리자 계정 생성 비밀번호 정책** — 계정 생성 폼(`AddAdminForm`)에 최소 8자·영문+숫자 조합 클라이언트 검증 추가, 강도 인디케이터 표시 | ⬜ |
+| FEAT-14 | **참가 신청 중복 방지** — 이름+연락처 기준 동일 대회 중복 신청 DB 체크, "이미 신청된 연락처" 안내 | ⬜ |
+| FEAT-15 | **참가 신청 연락처 형식 검증** — 전화번호 정규식 검증(`010-XXXX-XXXX`) + 자동 포맷팅, 공개 신청 폼 적용 | ⬜ |
 
 ---
 
@@ -171,6 +176,54 @@ SUPABASE_SERVICE_ROLE_KEY      = eyJ...   ← 서버 전용, NEXT_PUBLIC_ 붙이
 - `/api/notify` 라우트 — `RESEND_API_KEY` 없으면 silent skip
 - 개별/일괄 승인, 거절 모두 지원
 - **상태:** ✅
+
+---
+
+### FEAT-16 · 관리자 계정 초대 방식 전환
+- 현재 `system_admin`이 임시 비밀번호로 계정을 직접 생성하는 방식
+- Supabase `inviteUserByEmail()` API로 전환 — 대상자에게 설정 링크 이메일 자동 발송
+- `AddAdminForm` 및 `/api/admin/create-user` 수정
+- **상태:** ⬜
+
+---
+
+### FEAT-17 · 소셜 로그인 UX 개선
+- Google / Naver 버튼 클릭 후 redirect 중 스피너 표시 및 `disabled` 처리 (중복 클릭 방지)
+- 로그인 실패 시 마지막 로그인 수단 안내 — `user_profiles.provider` 조회 후 "이 계정은 Google로 가입되었습니다" 메시지 표시
+- **상태:** ⬜
+
+---
+
+### FEAT-18 · 대회 관리자 셀프 회원가입
+
+> **배경:** 현재 `tournament_admin` 계정은 `system_admin`이 직접 생성해야 함. 이 기능은 대회 관리자가 스스로 가입할 수 있는 흐름을 추가한다.
+> 소셜 로그인(Google/Naver)으로 신규 진입 시 `handle_new_user()` 트리거가 `tournament_admin` 역할을 자동 부여하므로, 소셜 경로는 이미 동작 중 — 명시적 UI 경로와 이메일 가입 흐름이 없는 것이 문제.
+
+#### 신규 페이지
+- `app/(auth)/register/page.tsx` — 회원가입 폼
+  - 필드: 이름(필수), 이메일(필수), 비밀번호(필수), 비밀번호 확인(필수)
+  - 소셜 가입 버튼 (Google / Naver) — 로그인 페이지와 동일 OAuth 흐름 재사용
+  - 클라이언트 검증: 이메일 형식, 비밀번호 최소 8자·영문+숫자, 비밀번호 확인 일치
+  - Supabase `auth.signUp()` 호출 후 `/register/verify`로 이동
+- `app/(auth)/register/verify/page.tsx` — 이메일 인증 안내
+  - "인증 메일을 발송했습니다. 이메일을 확인하세요" 안내
+  - 재발송 버튼 (`resend` 호출, 60초 쿨다운)
+
+#### 기존 변경
+- `app/(auth)/login/page.tsx` — 하단에 "계정이 없으신가요? **회원가입**" 링크 추가
+- `app/auth/callback/route.ts` — 신규 가입(`is_new_user`) 여부 감지 후 온보딩 또는 `/admin` 이동
+
+#### 선택 옵션 — 즉시 활성화 vs 승인 대기
+| 방식 | 내용 | 권장 |
+|---|---|---|
+| **즉시 활성화** (기본) | 이메일 인증 완료 즉시 `tournament_admin` 역할 부여, 바로 대회 생성 가능 | ✅ |
+| **system_admin 승인** | `user_profiles.status = 'pending'` 컬럼 추가, 관리자 승인 전 `/admin` 진입 차단, 사용자 관리 페이지에 승인 UI 추가 | 폐쇄형 운영 시 선택 |
+
+#### Supabase 설정 확인
+- Authentication > Email > Confirm email 활성화 여부 확인
+- Site URL / Redirect URL에 `/auth/callback` 등록 확인
+
+- **상태:** ⬜
 
 ---
 

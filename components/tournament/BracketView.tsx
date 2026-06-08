@@ -8,6 +8,8 @@ interface BracketMatch extends Match {
   p2Name?: string
   p1Club?: string
   p2Club?: string
+  p1Label?: string  // 예선 미확정 슬롯 예상 배정 (예: "1조 1위")
+  p2Label?: string
 }
 
 interface Props {
@@ -84,7 +86,7 @@ export default function BracketView({ matches, totalRounds, isTeam = false }: Pr
 }
 
 function BracketMatchCard({ match, isTeam }: { match: BracketMatch; isTeam: boolean }) {
-  const { p1Name, p1Club, p2Name, p2Club, score1, score2, status, winner_id, participant1_id, participant2_id } = match
+  const { p1Name, p1Club, p1Label, p2Name, p2Club, p2Label, score1, score2, status, winner_id, participant1_id, participant2_id } = match
   const isBye = status === 'bye'
   const isDone = status === 'completed'
   const sets = (match.sets ?? []) as MatchSet[]
@@ -93,6 +95,7 @@ function BracketMatchCard({ match, isTeam }: { match: BracketMatch; isTeam: bool
     <div className="glass rounded-xl overflow-hidden border border-white/10" style={{ width: CARD_W }}>
       <ParticipantRow
         name={p1Name}
+        label={p1Label}
         club={p1Club}
         score={score1}
         isWinner={isDone && winner_id === participant1_id}
@@ -102,6 +105,7 @@ function BracketMatchCard({ match, isTeam }: { match: BracketMatch; isTeam: bool
       <div className="h-px bg-white/10" />
       <ParticipantRow
         name={isBye ? '부전승' : p2Name}
+        label={isBye ? undefined : p2Label}
         club={isBye ? undefined : p2Club}
         score={score2}
         isWinner={isDone && winner_id === participant2_id}
@@ -132,24 +136,29 @@ function BracketMatchCard({ match, isTeam }: { match: BracketMatch; isTeam: bool
 }
 
 function ParticipantRow({
-  name, club, score, isWinner, isEmpty, isTeam,
+  name, label, club, score, isWinner, isEmpty, isTeam,
 }: {
-  name?: string; club?: string; score: number; isWinner: boolean; isEmpty: boolean; isTeam: boolean
+  name?: string; label?: string; club?: string; score: number; isWinner: boolean; isEmpty: boolean; isTeam: boolean
 }) {
+  const displayLabel = !name && label  // 실제 선수 미확정 + 예상 배정 있을 때
   return (
     <div className={cn(
       'flex items-center justify-between px-3 py-2 text-sm',
       isWinner && 'bg-primary/10',
-      isEmpty && 'opacity-40'
+      isEmpty && !displayLabel && 'opacity-40'
     )}>
       <div className="flex-1 min-w-0 mr-2">
-        <div className={cn('font-medium truncate', isWinner ? 'text-primary' : 'text-foreground')}>
-          {name ?? 'TBD'}
-          {!isTeam && club && (
-            <span className="text-[11px] font-normal text-muted-foreground ml-1">({club})</span>
-          )}
-        </div>
-        {isTeam && club && (
+        {displayLabel ? (
+          <div className="text-xs italic text-muted-foreground/70 truncate">{label}</div>
+        ) : (
+          <div className={cn('font-medium truncate', isWinner ? 'text-primary' : 'text-foreground')}>
+            {name ?? 'TBD'}
+            {!isTeam && club && (
+              <span className="text-[11px] font-normal text-muted-foreground ml-1">({club})</span>
+            )}
+          </div>
+        )}
+        {!displayLabel && isTeam && club && (
           <div className="text-[11px] text-muted-foreground truncate">{club}</div>
         )}
       </div>

@@ -234,7 +234,7 @@ export default function ScoresPage() {
   const pMap = new Map(players.map(p => [p.id, p]))
   const tMap = new Map(teams.map(t => [t.id, t]))
 
-  // 본선 1라운드 슬롯에 어느 조 몇 위가 배정될지 역산
+  // 본선 1라운드 슬롯에 어느 조 몇 위가 배정될지 역산 (조별 교차 시드 방식)
   function getProjectedLabel(matchNumber: number, isP2: boolean): string | null {
     const prelimPhase = phases.find(p => p.phase_type === 'preliminary')
     if (!prelimPhase) return null
@@ -244,13 +244,30 @@ export default function ScoresPage() {
       .sort((a, b) => a.display_order - b.display_order)
     if (prelimGroups.length === 0) return null
 
+    const G = prelimGroups.length
+    const K = advanceCount
+    const offset = Math.floor(G / 2)
     const slotIndex = (matchNumber - 1) * 2 + (isP2 ? 1 : 0)
-    const groupIdx = Math.floor(slotIndex / advanceCount)
-    const rankInGroup = slotIndex % advanceCount
 
-    const group = prelimGroups[groupIdx]
-    if (!group) return null
-    return `${group.name} ${rankInGroup + 1}위`
+    if (slotIndex % 2 === 0) {
+      // 짝수 슬롯: 상위 절반 순위 (조 상위 → 다른 조 하위와 대전)
+      const matchIdx = slotIndex / 2
+      const r = Math.floor(matchIdx / G)
+      const g = matchIdx % G
+      const group = prelimGroups[g]
+      if (!group || r >= K) return null
+      return `${group.name} ${r + 1}위`
+    } else {
+      // 홀수 슬롯: 하위 절반 순위
+      const matchIdx = (slotIndex - 1) / 2
+      const p = Math.floor(matchIdx / G)
+      const topG = matchIdx % G
+      const r = K - 1 - p
+      const botG = (topG + offset) % G
+      const group = prelimGroups[botG]
+      if (!group || r < 0 || r >= K) return null
+      return `${group.name} ${r + 1}위`
+    }
   }
 
   // ─── 편집 시작 ──────────────────────────────────────────────────────────────
@@ -408,10 +425,40 @@ export default function ScoresPage() {
     const mainMatches = matches
       .filter(m => m.phase_id === mainPhase.id && m.round === 1)
       .sort((a, b) => a.match_number - b.match_number)
-    const groupIndex = groups.filter(g => g.phase_id === phase.id).findIndex(g => g.id === groupId)
+
+    const prelimGroups = groups
+      .filter(g => g.phase_id === phase.id)
+      .sort((a, b) => a.display_order - b.display_order)
+    const groupIndex = prelimGroups.findIndex(g => g.id === groupId)
+    if (groupIndex === -1) return
+
+    const G = prelimGroups.length
+    const K = advanceCount
+    const offset = Math.floor(G / 2)
 
     for (let i = 0; i < advancers.length; i++) {
-      const slotIndex = groupIndex * advanceCount + i
+      const r = i
+      let slotIndex: number
+
+      if (r < K - 1 - r) {
+        // 상위 절반: 상위 시드가 다른 조 하위 시드와 대전
+        slotIndex = (r * G + groupIndex) * 2
+      } else if (r > K - 1 - r) {
+        // 하위 절반: 상위 절반의 상대방 슬롯
+        const p = K - 1 - r
+        const topGroupIndex = (groupIndex + G - offset) % G
+        slotIndex = (p * G + topGroupIndex) * 2 + 1
+      } else {
+        // 중간 순위 (K 홀수): 오프셋 조와 페어링
+        const partnerGroupIndex = (groupIndex + offset) % G
+        if (groupIndex <= partnerGroupIndex) {
+          slotIndex = (r * G + groupIndex) * 2
+        } else {
+          const topGroupIndex = (groupIndex + G - offset) % G
+          slotIndex = (r * G + topGroupIndex) * 2 + 1
+        }
+      }
+
       const targetMatch = mainMatches[Math.floor(slotIndex / 2)]
       if (!targetMatch) continue
       const isP1 = slotIndex % 2 === 0
