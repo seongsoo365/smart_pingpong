@@ -97,6 +97,14 @@ export default function DrawPage() {
 
     setLoading(true)
 
+    // Reset group_id on participants FIRST — FK on teams/players.group_id → groups(id)
+    // prevents group deletion if group_id is still set
+    if (isTeam) {
+      await supabase.from('teams').update({ group_id: null }).eq('division_id', selectedDivId)
+    } else {
+      await supabase.from('players').update({ group_id: null }).eq('division_id', selectedDivId)
+    }
+
     // Clear existing matches and groups
     if (prelim) {
       const { data: existingGroups } = await supabase.from('groups').select('id').eq('phase_id', prelim.id)
@@ -106,13 +114,6 @@ export default function DrawPage() {
       await supabase.from('groups').delete().eq('phase_id', prelim.id)
     }
     await supabase.from('matches').delete().eq('phase_id', main.id)
-
-    // Reset group_id on all participants
-    if (isTeam) {
-      await supabase.from('teams').update({ group_id: null }).eq('division_id', selectedDivId)
-    } else {
-      await supabase.from('players').update({ group_id: null }).eq('division_id', selectedDivId)
-    }
 
     if (prelim) {
       const distributed = distributeIntoGroups(participants as (Player | Team)[], groupCount)

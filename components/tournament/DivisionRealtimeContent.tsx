@@ -1,12 +1,12 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import StandingsTable from '@/components/tournament/StandingsTable'
 import BracketView from '@/components/tournament/BracketView'
 import GroupMatrix from '@/components/tournament/GroupMatrix'
 import { createClient } from '@/lib/supabase/client'
 import { calculateStandings } from '@/lib/utils/standings'
+import { cn } from '@/lib/utils'
 import type { Group, Match, MatchSet, Player, Standing, Team, TournamentPhase } from '@/lib/types'
 
 interface Props {
@@ -19,6 +19,13 @@ interface Props {
   initialStandings: Standing[]
   participants: (Player | Team)[]
   isIndividual: boolean
+}
+
+const PHASE_FORMAT_LABEL: Record<string, string> = {
+  round_robin: '리그',
+  single_elimination: '토너먼트',
+  double_elimination: '더블 토너먼트',
+  group_knockout: '조별 토너먼트',
 }
 
 export default function DivisionRealtimeContent({
@@ -37,6 +44,13 @@ export default function DivisionRealtimeContent({
   const [standings, setStandings] = useState<Standing[]>(initialStandings)
   const [connected, setConnected] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const hasPrelim = groups.length > 0
+  const hasMain = mainMatches.length > 0
+
+  const [activeTab, setActiveTab] = useState<'prelim' | 'main'>(
+    hasPrelim ? 'prelim' : 'main'
+  )
 
   const pMap = new Map(participants.map(p => [p.id, p]))
   const getName = (pid?: string) => pid ? (pMap.get(pid) as Player | Team | undefined)?.name : undefined
@@ -106,13 +120,14 @@ export default function DivisionRealtimeContent({
   }))
 
   const mainRounds = mainMatches.length > 0 ? Math.max(...mainMatches.map(m => m.round)) : 0
-  const hasPrelim = groups.length > 0
-  const hasMain = mainMatches.length > 0
 
   if (!hasPrelim && !hasMain) return null
 
+  const showTabs = hasPrelim && hasMain
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      {/* 실시간 연결 표시 */}
       <div className="flex items-center justify-end gap-1.5">
         <span className={`w-2 h-2 rounded-full transition-colors ${connected ? 'bg-green-500 animate-pulse' : 'bg-white/20'}`} />
         <span className="text-xs text-muted-foreground">
@@ -120,69 +135,111 @@ export default function DivisionRealtimeContent({
         </span>
       </div>
 
-      <Tabs defaultValue={hasPrelim ? 'prelim' : 'main'}>
-        <TabsList className="glass border border-white/10">
-          {hasPrelim && <TabsTrigger value="prelim">예선전</TabsTrigger>}
-          {hasMain && <TabsTrigger value="main">본선</TabsTrigger>}
-        </TabsList>
+      {/* 예선/본선 탭 선택 */}
+      {showTabs && (
+        <div className="glass rounded-xl border border-white/10 p-1 flex gap-1">
+          <button
+            onClick={() => setActiveTab('prelim')}
+            className={cn(
+              'flex-1 flex flex-col items-center gap-0.5 py-3 px-4 rounded-lg transition-all',
+              activeTab === 'prelim'
+                ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+            )}
+          >
+            <span className="text-sm font-bold">예선전</span>
+            {prelim && (
+              <span className={cn(
+                'text-xs font-normal',
+                activeTab === 'prelim' ? 'text-white/70' : 'text-muted-foreground/60'
+              )}>
+                {PHASE_FORMAT_LABEL[prelim.format] ?? prelim.format}
+                {' · '}{prelim.games_per_match}게임/{prelim.points_per_game}점
+                {prelim.advancement_count ? ` · 조당 ${prelim.advancement_count}팀 진출` : ''}
+              </span>
+            )}
+          </button>
 
-        {hasPrelim && (
-          <TabsContent value="prelim" className="space-y-6 mt-4">
-            {groups.map((group: Group) => {
-              const groupMatches = prelimMatches.filter(m => m.group_id === group.id)
-              const ids = [...new Set([
-                ...groupMatches.map(m => m.participant1_id),
-                ...groupMatches.map(m => m.participant2_id),
-              ].filter(Boolean))] as string[]
+          <button
+            onClick={() => setActiveTab('main')}
+            className={cn(
+              'flex-1 flex flex-col items-center gap-0.5 py-3 px-4 rounded-lg transition-all',
+              activeTab === 'main'
+                ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+            )}
+          >
+            <span className="text-sm font-bold">본선</span>
+            {main && (
+              <span className={cn(
+                'text-xs font-normal',
+                activeTab === 'main' ? 'text-white/70' : 'text-muted-foreground/60'
+              )}>
+                {PHASE_FORMAT_LABEL[main.format] ?? main.format}
+                {' · '}{main.games_per_match}게임/{main.points_per_game}점
+              </span>
+            )}
+          </button>
+        </div>
+      )}
 
-              const groupStandings = standings.filter(s => s.group_id === group.id)
+      {/* 예선전 내용 */}
+      {hasPrelim && (!showTabs || activeTab === 'prelim') && (
+        <div className="space-y-6">
+          {groups.map((group: Group) => {
+            const groupMatches = prelimMatches.filter(m => m.group_id === group.id)
+            if (groupMatches.length === 0) return null
+            const ids = [...new Set([
+              ...groupMatches.map(m => m.participant1_id),
+              ...groupMatches.map(m => m.participant2_id),
+            ].filter(Boolean))] as string[]
 
-              let rows: {
-                ranking: number; participant_id: string; name: string; club?: string
-                wins: number; losses: number; sets_won: number; sets_lost: number
-                points_won: number; points_lost: number
-              }[]
+            const groupStandings = standings.filter(s => s.group_id === group.id)
 
-              if (groupStandings.length >= ids.length && ids.length > 0) {
-                rows = groupStandings
-                  .sort((a, b) => a.ranking - b.ranking)
-                  .map(s => ({ ...s, name: getName(s.participant_id) ?? '?', club: getClub(s.participant_id) }))
-              } else {
-                rows = calculateStandings(groupMatches, ids).map(s => ({
-                  ...s,
-                  name: getName(s.participant_id) ?? '?',
-                  club: getClub(s.participant_id),
-                }))
-              }
+            let rows: {
+              ranking: number; participant_id: string; name: string; club?: string
+              wins: number; losses: number; sets_won: number; sets_lost: number
+              points_won: number; points_lost: number
+            }[]
 
-              const orderedParticipants = rows.map(r => ({ id: r.participant_id, name: r.name, club: r.club }))
+            if (groupStandings.length >= ids.length && ids.length > 0) {
+              rows = groupStandings
+                .sort((a, b) => a.ranking - b.ranking)
+                .map(s => ({ ...s, name: getName(s.participant_id) ?? '?', club: getClub(s.participant_id) }))
+            } else {
+              rows = calculateStandings(groupMatches, ids).map(s => ({
+                ...s,
+                name: getName(s.participant_id) ?? '?',
+                club: getClub(s.participant_id),
+              }))
+            }
 
-              return (
-                <div key={group.id} className="space-y-3">
-                  <h3 className="font-bold">{group.name}</h3>
-                  <StandingsTable rows={rows} advanceCount={prelim?.advancement_count ?? 2} isTeam={!isIndividual} />
-                  {groupMatches.some(m => m.status === 'completed') && (
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground font-medium px-1">상대 전적</p>
-                      <GroupMatrix
-                        participants={orderedParticipants}
-                        matches={groupMatches}
-                        participantLabel={isIndividual ? '선수' : '팀'}
-                      />
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </TabsContent>
-        )}
+            const orderedParticipants = rows.map(r => ({ id: r.participant_id, name: r.name, club: r.club }))
 
-        {hasMain && (
-          <TabsContent value="main" className="mt-4">
-            <BracketView matches={annotatedMain} totalRounds={mainRounds} isTeam={!isIndividual} />
-          </TabsContent>
-        )}
-      </Tabs>
+            return (
+              <div key={group.id} className="space-y-3">
+                <h3 className="font-bold">{group.name}</h3>
+                <StandingsTable rows={rows} advanceCount={prelim?.advancement_count ?? 2} isTeam={!isIndividual} />
+                {groupMatches.some(m => m.status === 'completed') && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground font-medium px-1">상대 전적</p>
+                    <GroupMatrix
+                      participants={orderedParticipants}
+                      matches={groupMatches}
+                      participantLabel={isIndividual ? '선수' : '팀'}
+                    />
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* 본선 내용 */}
+      {hasMain && (!showTabs || activeTab === 'main') && (
+        <BracketView matches={annotatedMain} totalRounds={mainRounds} isTeam={!isIndividual} />
+      )}
     </div>
   )
 }

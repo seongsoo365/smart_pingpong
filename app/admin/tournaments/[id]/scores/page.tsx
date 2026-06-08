@@ -923,6 +923,7 @@ export default function ScoresPage() {
           ) : (
             prelimGroups.map(group => {
               const groupMatches = currentPhaseMatches.filter(m => m.group_id === group.id)
+              if (groupMatches.length === 0) return null
               const pending = groupMatches.filter(m => m.status === 'pending' || m.status === 'in_progress')
               const completed = groupMatches.filter(m => m.status === 'completed')
               const allDone = pending.length === 0 && completed.length > 0
