@@ -50,7 +50,7 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
   const [phasesMap, setPhasesMap] = useState<Record<string, TournamentPhase[]>>({})
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
-    name: '', venue: '', description: '', start_date: '', end_date: '',
+    name: '', venue: '', description: '', regulations: '', start_date: '', end_date: '',
     registration_start: '', registration_end: '', status: 'draft',
   })
   const [showDivForm, setShowDivForm] = useState(false)
@@ -81,6 +81,7 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
           name: t.name ?? '',
           venue: t.venue ?? '',
           description: t.description ?? '',
+          regulations: t.regulations ?? '',
           start_date: t.start_date ?? '',
           end_date: t.end_date ?? '',
           registration_start: t.registration_start ?? '',
@@ -410,6 +411,12 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
             <textarea value={form.description} onChange={e => updateField('description', e.target.value)}
               rows={3} placeholder="대회에 대한 간단한 설명"
               className="w-full glass border border-white/10 rounded-xl px-4 py-2.5 text-sm bg-transparent outline-none focus:border-primary transition-colors resize-none" />
+          </div>
+          <div className="sm:col-span-2 space-y-1.5">
+            <label className="text-sm font-medium">대회요강</label>
+            <textarea value={form.regulations} onChange={e => updateField('regulations', e.target.value)}
+              rows={8} placeholder="참가 자격, 경기 방식, 시상 내역, 유의사항 등을 입력하세요"
+              className="w-full glass border border-white/10 rounded-xl px-4 py-2.5 text-sm bg-transparent outline-none focus:border-primary transition-colors resize-y" />
           </div>
         </div>
       </form>

@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, ChevronDown } from 'lucide-react'
 import { createClientSafe } from '@/lib/supabase/server'
 import DivisionRealtimeContent from '@/components/tournament/DivisionRealtimeContent'
 import type { Player, Team, Match, Group, Standing } from '@/lib/types'
@@ -33,7 +33,7 @@ export default async function DivisionDetailPage({
 
   const [{ data: division }, { data: tournament }] = await Promise.all([
     supabase.from('divisions').select('*').eq('id', divId).single(),
-    supabase.from('tournaments').select('name').eq('id', tournamentId).single(),
+    supabase.from('tournaments').select('name, status').eq('id', tournamentId).single(),
   ])
   if (!division || !tournament) notFound()
 
@@ -112,10 +112,14 @@ export default async function DivisionDetailPage({
         )}
       </div>
 
-      <section className="glass rounded-2xl p-5 border border-white/10">
-        <h2 className="font-semibold mb-3 text-sm uppercase tracking-wider text-muted-foreground">
-          {isIndividual ? `참가 선수 (${participants.length}명)` : `참가 팀 (${participants.length}팀)`}
-        </h2>
+      <details open={tournament.status === 'registration'} className="glass rounded-2xl border border-white/10 group">
+        <summary className="flex items-center justify-between px-5 py-4 cursor-pointer list-none select-none hover:bg-white/[0.03] transition-colors rounded-2xl">
+          <h2 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">
+            {isIndividual ? `참가 선수 (${participants.length}명)` : `참가 팀 (${participants.length}팀)`}
+          </h2>
+          <ChevronDown className="w-4 h-4 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
+        </summary>
+        <div className="px-5 pb-5">
         {isIndividual ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
             {participants.map(p => (
@@ -152,7 +156,8 @@ export default async function DivisionDetailPage({
             ))}
           </div>
         )}
-      </section>
+        </div>
+      </details>
 
       <DivisionRealtimeContent
         divId={divId}

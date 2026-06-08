@@ -30,7 +30,7 @@ export async function PATCH(
   if (!isAdmin && !isOwner) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
 
   const body = await req.json()
-  const allowed = ['name', 'venue', 'description', 'start_date', 'end_date',
+  const allowed = ['name', 'venue', 'description', 'regulations', 'start_date', 'end_date',
     'registration_start', 'registration_end', 'status']
   const updates: Record<string, unknown> = {}
   for (const key of allowed) {

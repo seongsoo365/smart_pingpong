@@ -58,6 +58,7 @@ export default function NewTournamentPage() {
     name: '',
     venue: '',
     description: '',
+    regulations: '',
     start_date: '',
     end_date: '',
     registration_start: '',
@@ -216,6 +217,12 @@ export default function NewTournamentPage() {
               <textarea value={form.description} onChange={e => updateField('description', e.target.value)}
                 rows={3} placeholder="대회에 대한 간단한 설명"
                 className="w-full glass border border-white/10 rounded-xl px-4 py-2.5 text-sm bg-transparent outline-none focus:border-primary resize-none" />
+            </div>
+            <div className="sm:col-span-2 space-y-1.5">
+              <label className="text-sm font-medium">대회요강</label>
+              <textarea value={form.regulations} onChange={e => updateField('regulations', e.target.value)}
+                rows={8} placeholder="참가 자격, 경기 방식, 시상 내역, 유의사항 등을 입력하세요"
+                className="w-full glass border border-white/10 rounded-xl px-4 py-2.5 text-sm bg-transparent outline-none focus:border-primary resize-y" />
             </div>
           </div>
         </section>

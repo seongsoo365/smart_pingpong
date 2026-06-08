@@ -8,9 +8,10 @@ import type { TournamentQuestion } from '@/lib/types'
 interface Props {
   tournamentId: string
   initialQuestions: TournamentQuestion[]
+  hideTitle?: boolean
 }
 
-export default function QnaSection({ tournamentId, initialQuestions }: Props) {
+export default function QnaSection({ tournamentId, initialQuestions, hideTitle = false }: Props) {
   const supabase = createClient()
   const [questions, setQuestions] = useState(initialQuestions)
   const [expanded, setExpanded] = useState<string | null>(null)
@@ -37,9 +38,11 @@ export default function QnaSection({ tournamentId, initialQuestions }: Props) {
 
   return (
     <section className="space-y-5">
-      <h2 className="text-lg font-bold flex items-center gap-2">
-        <MessageCircle className="w-5 h-5 text-primary" /> Q&amp;A
-      </h2>
+      {!hideTitle && (
+        <h2 className="text-lg font-bold flex items-center gap-2">
+          <MessageCircle className="w-5 h-5 text-primary" /> Q&amp;A
+        </h2>
+      )}
 
       {/* Answered questions */}
       {questions.length > 0 ? (

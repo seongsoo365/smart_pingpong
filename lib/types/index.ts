@@ -35,6 +35,7 @@ export interface Tournament {
   registration_end?: string
   status: TournamentStatus
   logo_url?: string
+  regulations?: string
   created_by: string
   admin_id: string
   created_at: string

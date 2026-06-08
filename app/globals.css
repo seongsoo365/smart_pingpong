@@ -122,4 +122,10 @@
     background-color: #1e293b;
     color: #f1f5f9;
   }
+
+  /* 텍스트 입력 필드 한글 IME 기본 활성화 (숫자·이메일·URL 제외) */
+  input:not([type="number"]):not([type="email"]):not([type="tel"]):not([type="url"]):not([type="password"]):not([type="date"]):not([type="time"]):not([type="datetime-local"]),
+  textarea {
+    ime-mode: active;
+  }
 }
