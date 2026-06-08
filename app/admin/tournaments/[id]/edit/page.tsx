@@ -2,6 +2,7 @@
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import { ChevronLeft, Users, GitBranch, ClipboardList, Plus, Trash2, Save, ExternalLink, Pencil, Check, X, FileCheck, Settings2, MessageCircle } from 'lucide-react'
+import { HelpPopover } from '@/components/ui/help-popover'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { Tournament, Division, DivisionMerge, TournamentPhase, Gender, MatchType, TeamMatchFormat, PhaseFormat } from '@/lib/types'
@@ -416,7 +417,27 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
       {/* Division Management */}
       <section className="glass rounded-2xl p-6 border border-white/10 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold">부수 관리 ({divisions.length}개)</h2>
+          <div className="flex items-center gap-1">
+            <h2 className="font-semibold">부수 관리 ({divisions.length}개)</h2>
+            <HelpPopover title="부수 관리 안내">
+              <p>
+                <span className="text-foreground font-medium">부수(Division)</span>는 대회 내 경기를 구분하는 단위입니다.
+                예를 들어 &ldquo;남자 1부&rdquo;, &ldquo;여자 2부&rdquo;처럼 성별·수준별로 나눌 수 있습니다.
+              </p>
+              <ul className="space-y-1.5 list-none">
+                <li>
+                  <span className="text-foreground font-medium">개인전</span> — 선수 개인이 직접 참가하는 방식
+                </li>
+                <li>
+                  <span className="text-foreground font-medium">단체전</span> — 팀 단위 참가. 올림픽, 스웨이틀링 등 다양한 방식 선택 가능
+                </li>
+              </ul>
+              <p className="border-t border-white/10 pt-2">
+                각 부수의 <span className="text-foreground font-medium">⚙ 단계 설정</span>에서 예선(리그)·본선(토너먼트) 방식과 게임 수를 지정합니다.
+                대진표 생성 전 반드시 설정을 완료해야 합니다.
+              </p>
+            </HelpPopover>
+          </div>
           <button onClick={() => setShowDivForm(!showDivForm)}
             className="inline-flex items-center gap-1.5 text-sm text-primary hover:opacity-80 transition-opacity">
             <Plus className="w-4 h-4" /> 부수 추가
@@ -693,9 +714,27 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
       {/* Division Merge Management */}
       <section className="glass rounded-2xl p-6 border border-white/10 space-y-4">
         <div className="flex items-center justify-between">
-          <div>
-            <h2 className="font-semibold">통합 부수 ({merges.length}개)</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">여러 부수를 하나의 대진표로 통합합니다</p>
+          <div className="flex items-start gap-1">
+            <div>
+              <h2 className="font-semibold">통합 부수 ({merges.length}개)</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">여러 부수를 하나의 대진표로 통합합니다</p>
+            </div>
+            <HelpPopover title="통합 부수 안내">
+              <p>
+                <span className="text-foreground font-medium">통합 부수</span>는 2개 이상의 부수를 하나의 대진표로 합쳐서 운영할 때 사용합니다.
+              </p>
+              <ul className="space-y-1.5 list-none">
+                <li>
+                  <span className="text-foreground font-medium">사용 예시</span> — &ldquo;남자 1부&rdquo;와 &ldquo;남자 2부&rdquo;를 통합하여 동일 대진표에서 경기 진행
+                </li>
+                <li>
+                  <span className="text-foreground font-medium">조건</span> — 부수가 2개 이상 등록되어 있어야 추가 가능
+                </li>
+              </ul>
+              <p className="border-t border-white/10 pt-2">
+                통합 부수로 묶인 부수들은 대진표 생성 시 하나의 단위로 처리됩니다.
+              </p>
+            </HelpPopover>
           </div>
           {divisions.length >= 2 && (
             <button onClick={() => setShowMergeForm(!showMergeForm)}

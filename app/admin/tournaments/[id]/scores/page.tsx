@@ -234,6 +234,25 @@ export default function ScoresPage() {
   const pMap = new Map(players.map(p => [p.id, p]))
   const tMap = new Map(teams.map(t => [t.id, t]))
 
+  // 본선 1라운드 슬롯에 어느 조 몇 위가 배정될지 역산
+  function getProjectedLabel(matchNumber: number, isP2: boolean): string | null {
+    const prelimPhase = phases.find(p => p.phase_type === 'preliminary')
+    if (!prelimPhase) return null
+    const advanceCount = prelimPhase.advancement_count ?? 2
+    const prelimGroups = groups
+      .filter(g => g.phase_id === prelimPhase.id)
+      .sort((a, b) => a.display_order - b.display_order)
+    if (prelimGroups.length === 0) return null
+
+    const slotIndex = (matchNumber - 1) * 2 + (isP2 ? 1 : 0)
+    const groupIdx = Math.floor(slotIndex / advanceCount)
+    const rankInGroup = slotIndex % advanceCount
+
+    const group = prelimGroups[groupIdx]
+    if (!group) return null
+    return `${group.name} ${rankInGroup + 1}위`
+  }
+
   // ─── 편집 시작 ──────────────────────────────────────────────────────────────
 
   function startEditing(match: Match) {
@@ -739,6 +758,44 @@ export default function ScoresPage() {
     )
   }
 
+  // 본선 1라운드 미배정 슬롯에 예선 조 배정 예고 카드 렌더링
+  function renderRound1PreviewMatch(m: Match) {
+    const p1 = m.participant1_id
+      ? (isTeamDiv ? tMap.get(m.participant1_id) : pMap.get(m.participant1_id))
+      : null
+    const p2 = m.participant2_id
+      ? (isTeamDiv ? tMap.get(m.participant2_id) : pMap.get(m.participant2_id))
+      : null
+
+    // 양쪽 모두 확정됐거나 이미 완료된 경기는 기존 렌더 위임
+    if ((p1 && p2) || m.status === 'completed') return renderMatch(m)
+
+    const proj1 = !p1 ? getProjectedLabel(m.match_number, false) : null
+    const proj2 = !p2 ? getProjectedLabel(m.match_number, true) : null
+
+    return (
+      <div key={m.id} className="rounded-xl border border-dashed border-white/20 bg-white/[0.02] px-4 py-3">
+        <div className="flex items-center gap-2">
+          <div className="flex-1 text-right">
+            {p1 ? (
+              <span className="text-sm font-medium">{p1.name}</span>
+            ) : (
+              <span className="text-xs text-muted-foreground/60 italic">{proj1 ?? 'TBD'}</span>
+            )}
+          </div>
+          <span className="text-muted-foreground/40 text-xs shrink-0 px-2">vs</span>
+          <div className="flex-1">
+            {p2 ? (
+              <span className="text-sm font-medium">{p2.name}</span>
+            ) : (
+              <span className="text-xs text-muted-foreground/60 italic">{proj2 ?? 'TBD'}</span>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // ─── 레이아웃 계산 ───────────────────────────────────────────────────────────
 
   const hasPrelim = phases.some(p => p.phase_type === 'preliminary')
@@ -1014,13 +1071,17 @@ export default function ScoresPage() {
               const pending = roundMatches.filter(m => m.status === 'pending' || m.status === 'in_progress')
               const completed = roundMatches.filter(m => m.status === 'completed')
               const allTbd = roundMatches.every(m => !m.participant1_id && !m.participant2_id)
+              const isRound1Preview = round === 1 && hasPrelim
+
               return (
                 <section key={round} className="space-y-3">
                   <div className="flex items-center gap-2">
                     <h2 className="font-semibold">{getRoundName(round, totalMainRounds)}</h2>
-                    {allTbd ? (
+                    {allTbd && !isRound1Preview ? (
                       <span className="text-xs text-muted-foreground">대기 중</span>
-                    ) : pending.length === 0 ? (
+                    ) : allTbd && isRound1Preview ? (
+                      <span className="text-xs text-muted-foreground">예선 결과 대기 중</span>
+                    ) : pending.length === 0 && completed.length > 0 ? (
                       <span className="text-xs text-emerald-400 flex items-center gap-1">
                         <CheckCircle className="w-3 h-3" /> 완료
                       </span>
@@ -1028,7 +1089,26 @@ export default function ScoresPage() {
                       <span className="text-xs text-muted-foreground">미완료 {pending.length}경기</span>
                     )}
                   </div>
-                  {allTbd ? (
+
+                  {/* 예선 연결 1라운드: 조 배정 예고 표시 */}
+                  {isRound1Preview ? (
+                    <div className="space-y-2">
+                      {allTbd && (
+                        <p className="text-xs text-muted-foreground/80 px-1">
+                          예선 결과에 따라 아래와 같이 배정될 예정입니다
+                        </p>
+                      )}
+                      {pending.map(m => renderRound1PreviewMatch(m))}
+                      {completed.length > 0 && (
+                        <div className="space-y-1.5">
+                          {pending.length > 0 && (
+                            <p className="text-xs text-muted-foreground font-medium pt-1">완료된 경기</p>
+                          )}
+                          {completed.map(m => renderMatch(m))}
+                        </div>
+                      )}
+                    </div>
+                  ) : allTbd ? (
                     <div className="text-center py-6 text-muted-foreground glass rounded-xl border border-white/10 text-sm">
                       이전 라운드 완료 후 대진이 확정됩니다
                     </div>

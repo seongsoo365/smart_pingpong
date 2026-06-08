@@ -2,11 +2,12 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft, Shuffle, CheckCircle } from 'lucide-react'
+import { ChevronLeft, Shuffle, CheckCircle, AlertCircle, Info } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { generateRoundRobin, distributeIntoGroups } from '@/lib/utils/roundrobin'
 import { generateSeededBracket, getBracketRounds, nextPowerOfTwo } from '@/lib/utils/bracket'
+import { cn } from '@/lib/utils'
 import type { Division, Player, Team, TournamentPhase } from '@/lib/types'
 
 const genderLabel: Record<string, string> = { male: '남자', female: '여자', mixed: '혼합' }
@@ -19,6 +20,7 @@ export default function DrawPage() {
   const [players, setPlayers] = useState<Player[]>([])
   const [teams, setTeams] = useState<Team[]>([])
   const [groupCount, setGroupCount] = useState(2)
+  const [advanceCount, setAdvanceCount] = useState(2)
   const [loading, setLoading] = useState(false)
   const [generated, setGenerated] = useState(false)
   const supabase = createClient()
@@ -47,6 +49,8 @@ export default function DrawPage() {
         setTeams(t ?? [])
         setPlayers([])
         setPhases(ph ?? [])
+        const pre = (ph ?? []).find(phase => phase.phase_type === 'preliminary')
+        if (pre?.advancement_count) setAdvanceCount(pre.advancement_count)
       })
     } else {
       Promise.all([
@@ -56,6 +60,8 @@ export default function DrawPage() {
         setPlayers(p ?? [])
         setTeams([])
         setPhases(ph ?? [])
+        const pre = (ph ?? []).find(phase => phase.phase_type === 'preliminary')
+        if (pre?.advancement_count) setAdvanceCount(pre.advancement_count)
       })
     }
   }, [selectedDivId, divisions])
@@ -67,6 +73,17 @@ export default function DrawPage() {
   const participants = isTeam ? teams : players
   const participantType = isTeam ? 'team' : 'player'
   const unitLabel = isTeam ? '팀' : '명'
+
+  // 조 편성 미리보기 계산
+  const groupSizes = prelim && participants.length > 0
+    ? distributeIntoGroups(participants as (Player | Team)[], groupCount).map(g => g.length)
+    : []
+  const hasEmptyGroup = groupSizes.some(s => s === 0)
+  const hasOnePersonGroup = groupSizes.some(s => s === 1)
+  const hasBlockingError = hasEmptyGroup || hasOnePersonGroup
+  const theoreticalAdvancing = groupCount * advanceCount
+  const bracketSlots = nextPowerOfTwo(theoreticalAdvancing)
+  const emptySlots = bracketSlots - theoreticalAdvancing
 
   async function generateDraw() {
     if (!main) { toast.error('본선 단계가 없습니다'); return }
@@ -139,8 +156,15 @@ export default function DrawPage() {
         }
       }
 
+      // advanceCount가 변경된 경우 DB에 저장
+      if (prelim.advancement_count !== advanceCount) {
+        await supabase.from('tournament_phases')
+          .update({ advancement_count: advanceCount })
+          .eq('id', prelim.id)
+      }
+
       // Generate main bracket — ALL rounds (TBD slots)
-      const totalAdvancing = groupCount * (prelim.advancement_count ?? 2)
+      const totalAdvancing = groupCount * advanceCount
       const mainSlots = nextPowerOfTwo(totalAdvancing)
       const mainTotalRounds = getBracketRounds(totalAdvancing)
       for (let round = 1; round <= mainTotalRounds; round++) {
@@ -242,24 +266,111 @@ export default function DrawPage() {
           </div>
 
           {prelim && (
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">조 수 (예선)</label>
-              <div className="flex gap-2">
-                {[2, 3, 4, 6, 8].map(n => (
-                  <button key={n} type="button"
-                    onClick={() => setGroupCount(n)}
-                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-                      groupCount === n
-                        ? 'bg-primary text-primary-foreground'
-                        : 'glass border border-white/10 text-muted-foreground hover:bg-white/10'
-                    }`}>
-                    {n}조
-                  </button>
-                ))}
+            <div className="space-y-4">
+              {/* 조 수 선택 */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">조 수</label>
+                <div className="flex gap-2 flex-wrap">
+                  {[2, 3, 4, 6, 8].map(n => (
+                    <button key={n} type="button"
+                      onClick={() => setGroupCount(n)}
+                      className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                        groupCount === n
+                          ? 'bg-primary text-primary-foreground'
+                          : 'glass border border-white/10 text-muted-foreground hover:bg-white/10'
+                      }`}>
+                      {n}조
+                    </button>
+                  ))}
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                조당 약 {Math.ceil(participants.length / groupCount)}{unitLabel} · 조당 {prelim.advancement_count ?? 2}{unitLabel} 본선 진출
-              </p>
+
+              {/* 조당 본선 진출 수 선택 */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">조당 본선 진출 수</label>
+                <div className="flex gap-2 flex-wrap">
+                  {[1, 2, 3, 4, 5, 6, 7].map(n => (
+                    <button key={n} type="button"
+                      onClick={() => setAdvanceCount(n)}
+                      className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                        advanceCount === n
+                          ? 'bg-primary text-primary-foreground'
+                          : 'glass border border-white/10 text-muted-foreground hover:bg-white/10'
+                      }`}>
+                      {n}명
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 조 편성 미리보기 */}
+              {participants.length > 0 && groupSizes.length > 0 && (
+                <div className="rounded-xl bg-white/5 p-3 space-y-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">조 편성 예상</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {groupSizes.map((size, i) => {
+                      const advancing = size < 2 ? 0 : Math.min(size, advanceCount)
+                      return (
+                        <div key={i} className={cn(
+                          'rounded-lg px-3 py-2 text-xs space-y-0.5',
+                          size === 0 ? 'border border-red-500/40 bg-red-500/10' :
+                          size === 1 ? 'border border-orange-500/40 bg-orange-500/10' :
+                          advancing < advanceCount ? 'border border-yellow-500/30 bg-yellow-500/10' :
+                          'bg-white/[0.05]'
+                        )}>
+                          <p className="font-semibold">{String.fromCharCode(65 + i)}조</p>
+                          <p className="text-muted-foreground">{size}{unitLabel} 참가</p>
+                          <p className={cn(
+                            size < 2 ? 'text-red-400' :
+                            advancing < advanceCount ? 'text-yellow-400' :
+                            'text-primary'
+                          )}>
+                            {size < 2 ? '편성 불가' : `→ ${advancing}${unitLabel} 진출`}
+                          </p>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* 본선 구조 요약 */}
+                  <div className="border-t border-white/10 pt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                    <span>진출 총원 <span className="text-foreground font-medium">{theoreticalAdvancing}{unitLabel}</span></span>
+                    <span>본선 규모 <span className="text-foreground font-medium">{bracketSlots}강</span></span>
+                    {emptySlots > 0 && (
+                      <span>부전승 <span className="text-foreground font-medium">{emptySlots}개</span></span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 에러 · 안내 메시지 */}
+              {hasEmptyGroup && (
+                <div className="flex items-start gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>
+                    조 수({groupCount})가 참가자 수({participants.length})보다 많아 빈 조가 생깁니다.
+                    조 수를 줄이거나 참가자를 추가하세요.
+                  </span>
+                </div>
+              )}
+              {!hasEmptyGroup && hasOnePersonGroup && (
+                <div className="flex items-start gap-2 text-sm text-orange-400 bg-orange-500/10 border border-orange-500/20 rounded-xl px-4 py-3">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>
+                    1명으로만 구성된 조가 있어 리그 경기를 편성할 수 없습니다.
+                    조 수를 줄이세요.
+                  </span>
+                </div>
+              )}
+              {!hasBlockingError && emptySlots > 0 && (
+                <div className="flex items-start gap-2 text-xs text-muted-foreground bg-white/5 border border-white/10 rounded-xl px-4 py-3">
+                  <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  <span>
+                    진출 총원({theoreticalAdvancing}{unitLabel})이 2의 거듭제곱이 아니어서
+                    본선 1라운드에 부전승 {emptySlots}개가 자동 배정됩니다. 대진 진행에는 문제없습니다.
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
@@ -279,7 +390,7 @@ export default function DrawPage() {
           <div className="flex gap-3 pt-2">
             <button
               onClick={generateDraw}
-              disabled={loading || participants.length < 2}
+              disabled={loading || participants.length < 2 || (!!prelim && hasBlockingError)}
               className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-2.5 rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60"
             >
               <Shuffle className="w-4 h-4" />

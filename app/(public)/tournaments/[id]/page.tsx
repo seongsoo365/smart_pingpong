@@ -201,11 +201,6 @@ export default async function TournamentDetailPage({
         </section>
       )}
 
-      <QnaSection
-        tournamentId={id}
-        initialQuestions={(questions ?? []) as TournamentQuestion[]}
-      />
-
       <section>
         <h2 className="text-lg font-bold mb-4">부수별 대진</h2>
         {(divisions?.length ?? 0) > 0 ? (
@@ -229,6 +224,11 @@ export default async function TournamentDetailPage({
           <p className="text-muted-foreground text-sm">아직 부수가 등록되지 않았습니다.</p>
         )}
       </section>
+
+      <QnaSection
+        tournamentId={id}
+        initialQuestions={(questions ?? []) as TournamentQuestion[]}
+      />
     </div>
   )
 }
