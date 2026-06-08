@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Trash2, ChevronDown } from 'lucide-react'
+import { Trash2, ChevronDown, ShieldCheck } from 'lucide-react'
 import type { UserProfile } from '@/lib/types'
 
 const roleLabel: Record<string, string> = {
@@ -89,6 +89,7 @@ export default function UserList({ users: initial, currentUserId }: Props) {
         {users.map(u => {
           const provider = providerLabel[u.provider ?? 'email'] ?? providerLabel.email
           const isSelf = u.id === currentUserId
+          const isSystemAdmin = u.role === 'system_admin'
           const busy = updating === u.id
           return (
             <div key={u.id} className={`flex items-center gap-3 px-5 py-3.5 ${busy ? 'opacity-60' : ''}`}>
@@ -106,25 +107,32 @@ export default function UserList({ users: initial, currentUserId }: Props) {
                 <p className="text-xs text-muted-foreground">{u.email}</p>
               </div>
 
-              {/* Role selector */}
-              <div className="relative shrink-0">
-                <select
-                  value={u.role}
-                  disabled={busy}
-                  onChange={e => handleRoleChange(u.id, e.target.value)}
-                  className="appearance-none bg-white/5 border border-white/10 rounded-lg pl-3 pr-7 py-1.5 text-xs font-medium cursor-pointer focus:outline-none focus:border-primary hover:bg-white/10 transition-colors"
-                >
-                  <option value="tournament_admin">대회 관리자</option>
-                  <option value="system_admin">시스템 관리자</option>
-                </select>
-                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
-              </div>
+              {/* Role: system_admin은 잠금 표시, 나머지는 선택 가능 */}
+              {isSystemAdmin ? (
+                <div className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary text-xs font-medium">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  시스템 관리자
+                </div>
+              ) : (
+                <div className="relative shrink-0">
+                  <select
+                    value={u.role}
+                    disabled={busy}
+                    onChange={e => handleRoleChange(u.id, e.target.value)}
+                    className="appearance-none bg-white/5 border border-white/10 rounded-lg pl-3 pr-7 py-1.5 text-xs font-medium cursor-pointer focus:outline-none focus:border-primary hover:bg-white/10 transition-colors"
+                  >
+                    <option value="tournament_admin">대회 관리자</option>
+                    <option value="system_admin">시스템 관리자</option>
+                  </select>
+                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
+                </div>
+              )}
 
-              {/* Delete button */}
+              {/* Delete button: system_admin은 삭제 불가 */}
               <button
                 onClick={() => handleDelete(u.id, u.name)}
-                disabled={busy || isSelf}
-                title={isSelf ? '본인 계정은 삭제할 수 없습니다' : '삭제'}
+                disabled={busy || isSelf || isSystemAdmin}
+                title={isSystemAdmin ? '시스템 관리자는 삭제할 수 없습니다' : isSelf ? '본인 계정은 삭제할 수 없습니다' : '삭제'}
                 className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-500/20 hover:text-red-400 text-muted-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 <Trash2 className="w-4 h-4" />

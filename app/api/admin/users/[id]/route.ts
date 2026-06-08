@@ -19,6 +19,11 @@ export async function PATCH(
   const role = await getCallerRole(supabase)
   if (role !== 'system_admin') return NextResponse.json({ error: '권한 없음' }, { status: 403 })
 
+  const { data: target } = await supabase.from('user_profiles').select('role').eq('id', id).single()
+  if (target?.role === 'system_admin') {
+    return NextResponse.json({ error: '시스템 관리자 계정은 변경할 수 없습니다' }, { status: 403 })
+  }
+
   const { role: newRole } = await req.json()
   if (!['system_admin', 'tournament_admin'].includes(newRole)) {
     return NextResponse.json({ error: '유효하지 않은 역할' }, { status: 400 })
@@ -43,9 +48,13 @@ export async function DELETE(
   const role = await getCallerRole(supabase)
   if (role !== 'system_admin') return NextResponse.json({ error: '권한 없음' }, { status: 403 })
 
-  // Prevent self-deletion
   const { data: { user } } = await supabase.auth.getUser()
   if (user?.id === id) return NextResponse.json({ error: '본인 계정은 삭제할 수 없습니다' }, { status: 400 })
+
+  const { data: target } = await supabase.from('user_profiles').select('role').eq('id', id).single()
+  if (target?.role === 'system_admin') {
+    return NextResponse.json({ error: '시스템 관리자 계정은 삭제할 수 없습니다' }, { status: 403 })
+  }
 
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
