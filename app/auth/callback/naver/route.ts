@@ -37,9 +37,10 @@ export async function GET(request: NextRequest) {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 
-  if (!clientId || !clientSecret || !serviceRoleKey || !supabaseUrl) {
-    return NextResponse.redirect(`${origin}/login?error=naver_not_configured`)
-  }
+  if (!clientId) return NextResponse.redirect(`${origin}/login?error=missing_naver_client_id`)
+  if (!clientSecret) return NextResponse.redirect(`${origin}/login?error=missing_naver_client_secret`)
+  if (!serviceRoleKey) return NextResponse.redirect(`${origin}/login?error=missing_supabase_service_key`)
+  if (!supabaseUrl) return NextResponse.redirect(`${origin}/login?error=missing_supabase_url`)
 
   if (!code) {
     return NextResponse.redirect(`${origin}/login?error=naver_code_missing`)
