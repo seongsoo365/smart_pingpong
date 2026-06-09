@@ -99,7 +99,8 @@ export async function GET(request: NextRequest) {
     })
 
     if (linkError || !data.properties?.action_link) {
-      return NextResponse.redirect(`${origin}/login?error=naver_link_failed`)
+      const detail = encodeURIComponent(linkError?.message ?? 'no_action_link')
+      return NextResponse.redirect(`${origin}/login?error=naver_link_failed&detail=${detail}`)
     }
 
     // 5. Clear state cookie and redirect to Supabase verify URL
