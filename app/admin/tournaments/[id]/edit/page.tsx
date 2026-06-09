@@ -1,7 +1,8 @@
 'use client'
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, Users, GitBranch, ClipboardList, Plus, Trash2, Save, ExternalLink, Pencil, Check, X, FileCheck, Settings2, MessageCircle } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { ChevronLeft, Users, GitBranch, ClipboardList, Plus, Trash2, Save, ExternalLink, Pencil, Check, X, FileCheck, Settings2, MessageCircle, AlertTriangle } from 'lucide-react'
 import { HelpPopover } from '@/components/ui/help-popover'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -43,9 +44,12 @@ function defaultPhaseEdit(): PhaseEdit {
 
 export default function TournamentEditPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const router = useRouter()
   const supabase = createClient()
 
   const [tournament, setTournament] = useState<Tournament | null>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [divisions, setDivisions] = useState<Division[]>([])
   const [phasesMap, setPhasesMap] = useState<Record<string, TournamentPhase[]>>({})
   const [saving, setSaving] = useState(false)
@@ -829,6 +833,57 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
               </button>
             </div>
           </form>
+        )}
+      </section>
+
+      {/* 대회 삭제 */}
+      <section className="glass rounded-2xl p-5 border border-red-500/20">
+        <h2 className="font-semibold text-red-400 mb-1">위험 구역</h2>
+        <p className="text-xs text-muted-foreground mb-4">대회를 삭제하면 부수·선수·대진표·결과가 모두 영구 삭제됩니다.</p>
+        {!showDeleteConfirm ? (
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors"
+          >
+            <Trash2 className="w-4 h-4" /> 대회 삭제
+          </button>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-start gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/30">
+              <AlertTriangle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+              <p className="text-sm text-red-300">
+                <span className="font-semibold">"{tournament?.name}"</span> 대회를 정말 삭제하시겠습니까?<br />
+                이 작업은 되돌릴 수 없습니다.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  setDeleting(true)
+                  const res = await fetch(`/api/tournaments/${id}`, { method: 'DELETE' })
+                  if (res.ok) {
+                    toast.success('대회가 삭제되었습니다')
+                    router.push('/admin')
+                  } else {
+                    const { error } = await res.json()
+                    toast.error('삭제 실패: ' + error)
+                    setDeleting(false)
+                    setShowDeleteConfirm(false)
+                  }
+                }}
+                disabled={deleting}
+                className="px-4 py-2 rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-60"
+              >
+                {deleting ? '삭제 중...' : '삭제 확인'}
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-4 py-2 rounded-xl text-sm glass border border-white/10 hover:bg-white/10 transition-colors"
+              >
+                취소
+              </button>
+            </div>
+          </div>
         )}
       </section>
     </div>

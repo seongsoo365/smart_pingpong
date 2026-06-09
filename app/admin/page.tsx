@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { Plus, Trophy, ArrowRight } from 'lucide-react'
 import { createClientSafe } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import TournamentCard from '@/components/tournament/TournamentCard'
+import TournamentDashboardList from '@/components/admin/TournamentDashboardList'
 import type { Tournament } from '@/lib/types'
 
 export default async function AdminDashboard() {
@@ -66,27 +66,7 @@ export default async function AdminDashboard() {
         </div>
 
         {(tournaments?.length ?? 0) > 0 ? (
-          <div className="space-y-3">
-            {tournaments?.map((t: Tournament) => (
-              <div key={t.id} className="glass rounded-xl p-4 border border-white/10 hover:bg-white/5 transition-colors">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold truncate">{t.name}</div>
-                    <div className="text-sm text-muted-foreground">{t.venue} · {t.start_date}</div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className={`text-xs font-medium px-2 py-1 rounded-full status-${t.status}`}>
-                      {t.status === 'draft' ? '준비' : t.status === 'registration' ? '접수' : t.status === 'in_progress' ? '진행' : '종료'}
-                    </span>
-                    <Link href={`/admin/tournaments/${t.id}/edit`}
-                      className="text-xs px-3 py-1.5 rounded-lg glass border border-white/10 hover:bg-white/10 transition-colors">
-                      관리
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          <TournamentDashboardList tournaments={tournaments as Tournament[]} />
         ) : (
           <div className="text-center py-12 text-muted-foreground glass rounded-xl border border-white/10">
             <Trophy className="w-10 h-10 mx-auto mb-3 opacity-30" />
