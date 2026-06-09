@@ -84,7 +84,8 @@ export async function GET(request: NextRequest) {
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
-    const { error: createError } = await adminClient.auth.admin.createUser({
+    // 3. 유저 생성 (이미 존재하면 무시)
+    const { data: createData } = await adminClient.auth.admin.createUser({
       email: naverUser.email,
       email_confirm: true,
       user_metadata: {
@@ -95,11 +96,18 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    // 이미 존재하는 유저가 아닌 다른 에러이면 중단
-    if (createError && !createError.message.toLowerCase().includes('already')) {
-      return NextResponse.redirect(
-        `${origin}/login?error=naver_create_failed&detail=${encodeURIComponent(createError.message)}`
-      )
+    // 3-1. user_profiles 직접 upsert (트리거 실패 대비)
+    const userId = createData?.user?.id
+    if (userId) {
+      await adminClient.from('user_profiles').upsert({
+        id: userId,
+        email: naverUser.email,
+        name: naverUser.name || naverUser.nickname || naverUser.email.split('@')[0],
+        avatar_url: naverUser.profile_image ?? null,
+        provider: 'naver',
+        role: 'tournament_admin',
+        password_changed: true,
+      }, { onConflict: 'id' })
     }
 
     // 4. Generate magic link for session creation (PKCE-compatible)
