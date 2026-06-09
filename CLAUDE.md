@@ -3,6 +3,7 @@
 이 파일은 Claude Code(claude.ai/code)가 이 저장소에서 작업할 때 참고하는 가이드입니다.
 
 @AGENTS.md
+@ARCHITECT.md
 
 ## 명령어
 
