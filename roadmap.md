@@ -1,6 +1,6 @@
 # Smart Pingpong 로드맵
 
-> 마지막 업데이트: 2026-06-09 (13차 — FEAT-14/15 참가 신청 중복 방지·연락처 형식 검증)  
+> 마지막 업데이트: 2026-06-09 (14차 — FEAT-16/17/18 초대방식·소셜UX·셀프회원가입)  
 > 상태 표시: ✅ 완료 · 🔄 진행 중 · ⬜ 예정 · ❌ 보류
 
 ---
@@ -183,14 +183,14 @@ SUPABASE_SERVICE_ROLE_KEY      = eyJ...   ← 서버 전용, NEXT_PUBLIC_ 붙이
 - 현재 `system_admin`이 임시 비밀번호로 계정을 직접 생성하는 방식
 - Supabase `inviteUserByEmail()` API로 전환 — 대상자에게 설정 링크 이메일 자동 발송
 - `AddAdminForm` 및 `/api/admin/create-user` 수정
-- **상태:** ⬜
+- **상태:** ✅
 
 ---
 
 ### FEAT-17 · 소셜 로그인 UX 개선
 - Google / Naver 버튼 클릭 후 redirect 중 스피너 표시 및 `disabled` 처리 (중복 클릭 방지)
 - 로그인 실패 시 마지막 로그인 수단 안내 — `user_profiles.provider` 조회 후 "이 계정은 Google로 가입되었습니다" 메시지 표시
-- **상태:** ⬜
+- **상태:** ✅
 
 ---
 
@@ -223,7 +223,7 @@ SUPABASE_SERVICE_ROLE_KEY      = eyJ...   ← 서버 전용, NEXT_PUBLIC_ 붙이
 - Authentication > Email > Confirm email 활성화 여부 확인
 - Site URL / Redirect URL에 `/auth/callback` 등록 확인
 
-- **상태:** ⬜
+- **상태:** ✅
 
 ---
 
@@ -245,3 +245,4 @@ SUPABASE_SERVICE_ROLE_KEY      = eyJ...   ← 서버 전용, NEXT_PUBLIC_ 붙이
 | v1.2 | 2026-06-07 | FEAT-10 Q&A 기능 (공개 질문 등록, 관리자 답변 관리, 공개/비공개 토글) |
 | v1.3 | 2026-06-09 | FEAT-11 비밀번호 찾기/재설정, FEAT-13 비밀번호 강도 정책, FEAT-12 첫 로그인 강제 변경 |
 | v1.4 | 2026-06-09 | FEAT-14 참가 신청 중복 방지 (이름+연락처 기준), FEAT-15 연락처 자동 포맷팅·형식 검증 |
+| v1.5 | 2026-06-09 | FEAT-18 셀프 회원가입(이메일·소셜), FEAT-16 초대 방식 전환, FEAT-17 소셜 로그인 UX 개선 |

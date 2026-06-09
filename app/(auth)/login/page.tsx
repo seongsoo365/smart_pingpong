@@ -33,6 +33,7 @@ function LoginForm() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [socialLoading, setSocialLoading] = useState<'google' | 'naver' | null>(null)
+  const [providerHint, setProviderHint] = useState<string | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
   const errorParam = searchParams.get('error')
@@ -71,10 +72,24 @@ function LoginForm() {
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
+    setProviderHint(null)
     const supabase = createClient()
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
-      toast.error('로그인 실패: ' + error.message)
+      // FEAT-17: 소셜 가입 계정 여부 확인 후 안내 메시지
+      try {
+        const res = await fetch(`/api/auth/provider?email=${encodeURIComponent(email)}`)
+        const { provider } = await res.json() as { provider: string | null }
+        if (provider === 'google') {
+          setProviderHint('이 계정은 Google로 가입되었습니다. Google 버튼으로 로그인하세요.')
+        } else if (provider === 'naver') {
+          setProviderHint('이 계정은 Naver로 가입되었습니다. Naver 버튼으로 로그인하세요.')
+        } else {
+          toast.error('이메일 또는 비밀번호가 올바르지 않습니다')
+        }
+      } catch {
+        toast.error('로그인 실패: ' + error.message)
+      }
     } else {
       toast.success('로그인 성공')
       router.push('/admin')
@@ -98,6 +113,11 @@ function LoginForm() {
           {errorParam && errorMessages[errorParam] && (
             <p className="text-sm text-red-400 text-center bg-red-500/10 rounded-xl px-4 py-2.5">
               {errorMessages[errorParam]}
+            </p>
+          )}
+          {providerHint && (
+            <p className="text-sm text-yellow-400 text-center bg-yellow-500/10 rounded-xl px-4 py-2.5">
+              {providerHint}
             </p>
           )}
 
@@ -159,9 +179,12 @@ function LoginForm() {
             >
               {loading ? '로그인 중...' : '로그인'}
             </button>
-            <div className="text-center">
-              <Link href="/forgot-password" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <Link href="/forgot-password" className="hover:text-foreground transition-colors">
                 비밀번호를 잊으셨나요?
+              </Link>
+              <Link href="/register" className="hover:text-foreground transition-colors">
+                계정이 없으신가요? <span className="text-primary font-medium">회원가입</span>
               </Link>
             </div>
           </form>
