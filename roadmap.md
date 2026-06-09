@@ -1,6 +1,6 @@
 # Smart Pingpong 로드맵
 
-> 마지막 업데이트: 2026-06-09 (14차 — FEAT-16/17/18 초대방식·소셜UX·셀프회원가입)  
+> 마지막 업데이트: 2026-06-09 (15차 — FEAT-11~18 Playwright 검증 완료, 소셜 로그인 설정 가이드 추가)  
 > 상태 표시: ✅ 완료 · 🔄 진행 중 · ⬜ 예정 · ❌ 보류
 
 ---
@@ -227,6 +227,23 @@ SUPABASE_SERVICE_ROLE_KEY      = eyJ...   ← 서버 전용, NEXT_PUBLIC_ 붙이
 
 ---
 
+---
+
+## 5단계 — 소셜 로그인 활성화 체크리스트
+
+> FEAT-16/17/18 코드 구현은 완료. 아래 외부 설정만 완료하면 Google/Naver 로그인 즉시 동작.
+
+| # | 항목 | 내용 | 상태 |
+|---|------|------|------|
+| 1 | **Google Cloud Console** | OAuth 앱 생성 → Client ID/Secret 발급 → Supabase Dashboard > Authentication > Providers > Google에 입력 | ⬜ |
+| 2 | **Google 리다이렉트 URI** | Google Cloud Console에 `https://<supabase-project>.supabase.co/auth/v1/callback` 추가 | ⬜ |
+| 3 | **Naver Developers** | 앱 설정 → API 설정 → Callback URL에 `{배포 도메인}/auth/callback/naver` 추가 | ⬜ |
+| 4 | **Vercel 환경 변수** | `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET` 추가 | ⬜ |
+| 5 | **Supabase Redirect URLs** | Authentication > URL Configuration에 `localhost:3000/**` 및 Vercel 배포 도메인 추가 | ⬜ |
+| 6 | **DB 마이그레이션** | Supabase SQL Editor에서 `013_password_changed.sql` → `014_fix_password_changed_trigger.sql` → `015_fix_trigger_provider.sql` 순서대로 실행 | ⬜ |
+
+---
+
 ## 버전 이력
 
 | 버전 | 날짜 | 주요 내용 |
@@ -246,3 +263,4 @@ SUPABASE_SERVICE_ROLE_KEY      = eyJ...   ← 서버 전용, NEXT_PUBLIC_ 붙이
 | v1.3 | 2026-06-09 | FEAT-11 비밀번호 찾기/재설정, FEAT-13 비밀번호 강도 정책, FEAT-12 첫 로그인 강제 변경 |
 | v1.4 | 2026-06-09 | FEAT-14 참가 신청 중복 방지 (이름+연락처 기준), FEAT-15 연락처 자동 포맷팅·형식 검증 |
 | v1.5 | 2026-06-09 | FEAT-18 셀프 회원가입(이메일·소셜), FEAT-16 초대 방식 전환, FEAT-17 소셜 로그인 UX 개선 |
+| v1.6 | 2026-06-09 | FEAT-11~18 Playwright 브라우저 검증 완료, ARCHITECT.md 프로젝트 구조 문서 추가, 소셜 로그인 활성화 체크리스트 정리 |
