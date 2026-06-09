@@ -23,6 +23,20 @@ function getTeamSize(fmt?: TeamMatchFormat | null) {
   return TEAM_SIZE[fmt]
 }
 
+// FEAT-15: 연락처 자동 포맷팅 (010-XXXX-XXXX)
+function formatPhone(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 11)
+  if (digits.length <= 3) return digits
+  if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`
+  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`
+}
+
+function validatePhone(phone: string): string | null {
+  if (!phone) return null
+  if (!/^01[0-9]-\d{3,4}-\d{4}$/.test(phone)) return '010-0000-0000 형식으로 입력하세요'
+  return null
+}
+
 export default function RegisterPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
@@ -36,6 +50,7 @@ export default function RegisterPage() {
   // common
   const [divisionId, setDivisionId] = useState('')
   const [phone, setPhone] = useState('')
+  const [phoneError, setPhoneError] = useState<string | null>(null)
   const [email, setEmail] = useState('')
 
   // individual
@@ -82,6 +97,12 @@ export default function RegisterPage() {
     if (div) selectDivision(div)
   }
 
+  function handlePhoneChange(value: string) {
+    const formatted = formatPhone(value)
+    setPhone(formatted)
+    setPhoneError(validatePhone(formatted))
+  }
+
   function updateMember(idx: number, field: 'name' | 'level', val: string) {
     setMembers(prev => prev.map((m, i) => i === idx
       ? { ...m, [field]: field === 'level' ? (val ? Number(val) : '') : val }
@@ -101,6 +122,15 @@ export default function RegisterPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!divisionId) return
+
+    // FEAT-15: 연락처 형식 최종 검증
+    const phoneValidationError = validatePhone(phone)
+    if (phoneValidationError) {
+      setPhoneError(phoneValidationError)
+      toast.error(phoneValidationError)
+      return
+    }
+
     setLoading(true)
 
     if (isTeam) {
@@ -108,6 +138,20 @@ export default function RegisterPage() {
       if (!teamName.trim()) { toast.error('팀명을 입력하세요'); setLoading(false); return }
       if (teamSize && validMembers.length < teamSize.min) {
         toast.error(`선수를 최소 ${teamSize.min}명 입력하세요`)
+        setLoading(false)
+        return
+      }
+
+      // FEAT-14: 팀명 중복 확인
+      const { data: existingTeam } = await supabase
+        .from('teams')
+        .select('id')
+        .eq('division_id', divisionId)
+        .eq('name', teamName.trim())
+        .maybeSingle()
+
+      if (existingTeam) {
+        toast.error('이미 동일한 팀명으로 신청된 내역이 있습니다')
         setLoading(false)
         return
       }
@@ -137,8 +181,27 @@ export default function RegisterPage() {
         return
       }
     } else {
-      // Individual registration
       if (!name.trim()) { toast.error('이름을 입력하세요'); setLoading(false); return }
+
+      // FEAT-14: 이름+연락처 기준 중복 확인
+      const dupQuery = supabase
+        .from('players')
+        .select('id')
+        .eq('division_id', divisionId)
+        .eq('name', name.trim())
+
+      const { data: existing } = await (
+        phone.trim()
+          ? dupQuery.eq('phone', phone.trim())
+          : dupQuery
+      ).maybeSingle()
+
+      if (existing) {
+        toast.error('이미 동일한 이름' + (phone.trim() ? '과 연락처로' : '으로') + ' 신청된 내역이 있습니다')
+        setLoading(false)
+        return
+      }
+
       const { error } = await supabase.from('players').insert({
         division_id: divisionId,
         name: name.trim(),
@@ -156,7 +219,7 @@ export default function RegisterPage() {
 
   function resetForm() {
     setSubmitted(false)
-    setName(''); setClub(''); setPhone(''); setEmail('')
+    setName(''); setClub(''); setPhone(''); setPhoneError(null); setEmail('')
     setTeamName(''); setTeamClub('')
     setMembers([{ name: '', level: '' }, { name: '', level: '' }, { name: '', level: '' }])
     if (selectedDiv) selectDivision(selectedDiv)
@@ -188,6 +251,23 @@ export default function RegisterPage() {
       </div>
     )
   }
+
+  // 연락처 입력 필드 (재사용)
+  const phoneField = (
+    <div className="space-y-1.5">
+      <label className="text-sm font-medium">연락처 <span className="text-muted-foreground font-normal">(선택)</span></label>
+      <input
+        type="tel"
+        value={phone}
+        onChange={e => handlePhoneChange(e.target.value)}
+        placeholder="010-0000-0000"
+        className={`w-full glass border rounded-xl px-4 py-2.5 text-sm bg-transparent outline-none transition-colors ${
+          phoneError ? 'border-red-500' : 'border-white/10 focus:border-primary'
+        }`}
+      />
+      {phoneError && <p className="text-xs text-red-400">{phoneError}</p>}
+    </div>
+  )
 
   return (
     <div className="max-w-lg mx-auto px-4 py-8 space-y-6">
@@ -227,7 +307,6 @@ export default function RegisterPage() {
           </div>
 
           {isTeam ? (
-            /* Team registration fields */
             <>
               {teamSize && (
                 <p className="text-xs text-primary/80 bg-primary/10 rounded-lg px-3 py-2">
@@ -294,12 +373,7 @@ export default function RegisterPage() {
                 )}
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">연락처 <span className="text-muted-foreground font-normal">(선택)</span></label>
-                <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
-                  placeholder="010-0000-0000"
-                  className="w-full glass border border-white/10 rounded-xl px-4 py-2.5 text-sm bg-transparent outline-none focus:border-primary" />
-              </div>
+              {phoneField}
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">이메일 <span className="text-muted-foreground font-normal">(선택 — 승인 결과 수신)</span></label>
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)}
@@ -308,7 +382,6 @@ export default function RegisterPage() {
               </div>
             </>
           ) : (
-            /* Individual registration fields */
             <>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">이름 *</label>
@@ -322,12 +395,7 @@ export default function RegisterPage() {
                   placeholder="팀명 또는 소속 기관"
                   className="w-full glass border border-white/10 rounded-xl px-4 py-2.5 text-sm bg-transparent outline-none focus:border-primary" />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">연락처 <span className="text-muted-foreground font-normal">(선택)</span></label>
-                <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
-                  placeholder="010-0000-0000"
-                  className="w-full glass border border-white/10 rounded-xl px-4 py-2.5 text-sm bg-transparent outline-none focus:border-primary" />
-              </div>
+              {phoneField}
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">이메일 <span className="text-muted-foreground font-normal">(선택 — 승인 결과 수신)</span></label>
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)}
@@ -337,7 +405,7 @@ export default function RegisterPage() {
             </>
           )}
 
-          <button type="submit" disabled={loading}
+          <button type="submit" disabled={loading || !!phoneError}
             className="w-full py-3 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60">
             {loading ? '접수 중...' : '참가 신청하기'}
           </button>
