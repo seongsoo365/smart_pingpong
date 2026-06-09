@@ -74,12 +74,17 @@ export async function GET(request: NextRequest) {
 
     const naverUser = profileData.response
 
+    // 네이버 이메일 없는 경우 처리
+    if (!naverUser.email) {
+      return NextResponse.redirect(`${origin}/login?error=naver_no_email`)
+    }
+
     // 3. Create/find user in Supabase via admin API
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
-    await adminClient.auth.admin.createUser({
+    const { error: createError } = await adminClient.auth.admin.createUser({
       email: naverUser.email,
       email_confirm: true,
       user_metadata: {
@@ -89,7 +94,13 @@ export async function GET(request: NextRequest) {
         naver_id: naverUser.id,
       },
     })
-    // Ignore "already registered" errors — user already exists
+
+    // 이미 존재하는 유저가 아닌 다른 에러이면 중단
+    if (createError && !createError.message.toLowerCase().includes('already')) {
+      return NextResponse.redirect(
+        `${origin}/login?error=naver_create_failed&detail=${encodeURIComponent(createError.message)}`
+      )
+    }
 
     // 4. Generate magic link for session creation (PKCE-compatible)
     const { data, error: linkError } = await adminClient.auth.admin.generateLink({
