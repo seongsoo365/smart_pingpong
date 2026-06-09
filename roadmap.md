@@ -237,10 +237,10 @@ SUPABASE_SERVICE_ROLE_KEY      = eyJ...   ← 서버 전용, NEXT_PUBLIC_ 붙이
 |---|------|------|------|
 | 1 | **Google Cloud Console** | OAuth 앱 생성 → Client ID/Secret 발급 → Supabase Dashboard > Authentication > Providers > Google에 입력 | ⬜ |
 | 2 | **Google 리다이렉트 URI** | Google Cloud Console에 `https://<supabase-project>.supabase.co/auth/v1/callback` 추가 | ⬜ |
-| 3 | **Naver Developers** | 앱 설정 → API 설정 → Callback URL에 `{배포 도메인}/auth/callback/naver` 추가 | ⬜ |
-| 4 | **Vercel 환경 변수** | `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET` 추가 | ⬜ |
-| 5 | **Supabase Redirect URLs** | Authentication > URL Configuration에 `localhost:3000/**` 및 Vercel 배포 도메인 추가 | ⬜ |
-| 6 | **DB 마이그레이션** | Supabase SQL Editor에서 `013_password_changed.sql` → `014_fix_password_changed_trigger.sql` → `015_fix_trigger_provider.sql` 순서대로 실행 | ⬜ |
+| 3 | **Naver Developers** | 앱 설정 → API 설정 → Callback URL에 `{배포 도메인}/auth/callback/naver` 추가 | ✅ |
+| 4 | **Vercel 환경 변수** | `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET` 추가 | ✅ |
+| 5 | **Supabase Redirect URLs** | Authentication > URL Configuration에 `localhost:3000/**`, Vercel 도메인, `/auth/naver/complete` 추가 | ✅ |
+| 6 | **DB 마이그레이션** | Supabase SQL Editor에서 `013_password_changed.sql` → `015_fix_trigger_provider.sql` 실행 (public 스키마 명시, search_path 설정) | ✅ |
 
 ---
 
@@ -264,3 +264,4 @@ SUPABASE_SERVICE_ROLE_KEY      = eyJ...   ← 서버 전용, NEXT_PUBLIC_ 붙이
 | v1.4 | 2026-06-09 | FEAT-14 참가 신청 중복 방지 (이름+연락처 기준), FEAT-15 연락처 자동 포맷팅·형식 검증 |
 | v1.5 | 2026-06-09 | FEAT-18 셀프 회원가입(이메일·소셜), FEAT-16 초대 방식 전환, FEAT-17 소셜 로그인 UX 개선 |
 | v1.6 | 2026-06-09 | FEAT-11~18 Playwright 브라우저 검증 완료, ARCHITECT.md 프로젝트 구조 문서 추가, 소셜 로그인 활성화 체크리스트 정리 |
+| v1.7 | 2026-06-09 | 네이버 로그인 실서비스 연동 완료 — Vercel 환경변수, DB 트리거 public 스키마 수정, 임플리싯 플로우 클라이언트 처리 페이지 추가 |
