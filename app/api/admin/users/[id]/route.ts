@@ -64,6 +64,17 @@ export async function DELETE(
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
+  // 삭제 전 해당 유저의 대회 admin_id / created_by를 NULL로 해제 (FK 제약 해소)
+  await adminClient
+    .from('tournaments')
+    .update({ admin_id: null })
+    .eq('admin_id', id)
+
+  await adminClient
+    .from('tournaments')
+    .update({ created_by: null })
+    .eq('created_by', id)
+
   const { error } = await adminClient.auth.admin.deleteUser(id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
