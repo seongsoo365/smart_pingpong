@@ -1,6 +1,7 @@
 'use client'
 import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { Trophy } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -158,6 +159,11 @@ function LoginForm() {
             >
               {loading ? '로그인 중...' : '로그인'}
             </button>
+            <div className="text-center">
+              <Link href="/forgot-password" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+                비밀번호를 잊으셨나요?
+              </Link>
+            </div>
           </form>
         </div>
       </div>

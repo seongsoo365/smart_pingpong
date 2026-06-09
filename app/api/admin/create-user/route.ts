@@ -28,8 +28,8 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
-  // Update profile name (trigger creates profile, but name might default to email)
-  await adminClient.from('user_profiles').update({ name }).eq('id', data.user.id)
+  // 이름 업데이트 + 첫 로그인 비밀번호 변경 강제 플래그 설정
+  await adminClient.from('user_profiles').update({ name, password_changed: false }).eq('id', data.user.id)
 
   return NextResponse.json({ ok: true })
 }

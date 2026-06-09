@@ -21,6 +21,7 @@ export interface UserProfile {
   role: UserRole
   provider?: string
   avatar_url?: string
+  password_changed?: boolean
   created_at: string
 }
 

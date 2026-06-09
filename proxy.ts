@@ -28,7 +28,31 @@ export async function proxy(request: NextRequest) {
   })
 
   // 세션 쿠키 갱신 (auth token 만료 방지)
-  await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  // 이메일 로그인 사용자의 /admin 접근 시 첫 로그인 비밀번호 변경 확인
+  const pathname = request.nextUrl.pathname
+  if (
+    user &&
+    user.app_metadata?.provider === 'email' &&
+    pathname.startsWith('/admin') &&
+    !pathname.startsWith('/admin/change-password')
+  ) {
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('password_changed')
+      .eq('id', user.id)
+      .single()
+
+    if (profile && !profile.password_changed) {
+      const redirectResponse = NextResponse.redirect(new URL('/admin/change-password', request.url))
+      // 세션 쿠키를 리다이렉트 응답에 복사
+      supabaseResponse.cookies.getAll().forEach(cookie => {
+        redirectResponse.cookies.set(cookie.name, cookie.value)
+      })
+      return redirectResponse
+    }
+  }
 
   return supabaseResponse
 }
