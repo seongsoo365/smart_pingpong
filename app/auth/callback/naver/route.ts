@@ -114,7 +114,7 @@ export async function GET(request: NextRequest) {
     const { data, error: linkError } = await adminClient.auth.admin.generateLink({
       type: 'magiclink',
       email: naverUser.email,
-      options: { redirectTo: `${origin}/auth/callback?next=/admin` },
+      options: { redirectTo: `${origin}/auth/naver/complete` },
     })
 
     if (linkError || !data.properties?.action_link) {
