@@ -115,6 +115,9 @@ SUPABASE_SERVICE_ROLE_KEY      = eyJ...   ← 서버 전용, NEXT_PUBLIC_ 붙이
 | BUG-04 | `players/page.tsx` | 단체전 부수 선택 시 개인전 UI 표시 — match_type 분기 미처리 | ✅ |
 | BUG-05 | `players/page.tsx` | 팀 목록 미조회 — `teams` 테이블에 없는 `created_at` 정렬 컬럼 오류 | ✅ |
 | BUG-06 | `draw/page.tsx` | 단체전 대진표 생성 불가 — `players` 테이블만 조회하여 팀이 0명으로 표시 | ✅ |
+| BUG-07 | `api/admin/users/[id]/route.ts` | 대회 관리자 삭제 실패 — `tournaments.admin_id/created_by` FK 제약으로 auth.users 삭제 불가, 삭제 전 참조 NULL 해제로 수정 | ✅ |
+| BUG-08 | `supabase/migrations/015` | 네이버 로그인 시 "relation user_profiles does not exist" — SECURITY DEFINER 함수에서 public 스키마 미명시, `SET search_path = public` 추가 | ✅ |
+| BUG-09 | `app/auth/naver/complete/page.tsx` | 네이버 magic link 임플리싯 플로우 — Supabase가 토큰을 URL fragment(#)로 반환하나 서버 라우트가 처리 불가, 클라이언트 페이지 신규 추가 | ✅ |
 
 ---
 
