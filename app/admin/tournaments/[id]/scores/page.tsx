@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, CheckCircle, Pencil, Check, X, ChevronDown, ChevronUp, AlertTriangle, TableIcon } from 'lucide-react'
@@ -94,6 +94,8 @@ export default function ScoresPage() {
   const [selectedPhaseType, setSelectedPhaseType] = useState<'preliminary' | 'main'>('preliminary')
   const [tieBreaks, setTieBreaks] = useState<Record<string, string[]>>({})
   const [showMatrix, setShowMatrix] = useState<Record<string, boolean>>({})
+  const [confirmedGroupIds, setConfirmedGroupIds] = useState<Set<string>>(new Set())
+  const confirmedGroupIdsRef = useRef<Set<string>>(new Set())
   const supabase = createClient()
 
   useEffect(() => {
@@ -137,7 +139,6 @@ export default function ScoresPage() {
       supabase.from('groups').select('*').in('phase_id', phaseIds).order('display_order'),
       supabase.from('matches').select('*').in('phase_id', phaseIds).order('round').order('match_number'),
     ])
-    setGroups(g ?? [])
 
     const allMatches = m ?? []
     const mainPhase = (ph ?? []).find(p => p.phase_type === 'main')
@@ -192,6 +193,20 @@ export default function ScoresPage() {
         }
       }
     }
+    // standings 테이블에서 이미 순위가 확정된 그룹 ID를 로드 (tieBreaks 패널 재표시 방지)
+    const groupIds = (g ?? []).map(grp => grp.id)
+    if (groupIds.length > 0) {
+      const { data: savedS } = await supabase
+        .from('standings').select('group_id').in('group_id', groupIds)
+      const newSet = new Set(savedS?.map(s => s.group_id as string) ?? [])
+      confirmedGroupIdsRef.current = newSet
+      setConfirmedGroupIds(newSet)
+    } else {
+      confirmedGroupIdsRef.current = new Set()
+      setConfirmedGroupIds(new Set())
+    }
+
+    setGroups(g ?? [])
     setMatches(allMatches)
 
     if (allMatches.length > 0) {
@@ -223,7 +238,7 @@ export default function ScoresPage() {
           ...gMatches.map(m => m.participant2_id),
         ].filter(Boolean))] as string[]
         const standings = calculateStandings(gMatches, ids)
-        if (getTieGroups(standings).length > 0) {
+        if (getTieGroups(standings).length > 0 && !confirmedGroupIdsRef.current.has(group.id)) {
           next[group.id] = prev[group.id] ?? standings.map(s => s.participant_id)
         }
       }
@@ -485,7 +500,7 @@ export default function ScoresPage() {
 
     const upserts = orderedIds.map((pid, idx) => {
       const s = statsMap.get(pid) ?? { wins: 0, losses: 0, sets_won: 0, sets_lost: 0, points_won: 0, points_lost: 0 }
-      return { group_id: groupId, participant_id: pid, ranking: idx + 1, ...s }
+      return { group_id: groupId, participant_id: pid, ...s, ranking: idx + 1 }
     })
     const { error } = await supabase.from('standings').upsert(upserts, { onConflict: 'group_id,participant_id' })
     if (error) { toast.error('순위 저장 실패: ' + error.message); return }
@@ -494,6 +509,27 @@ export default function ScoresPage() {
     setTieBreaks(prev => { const n = { ...prev }; delete n[groupId]; return n })
     toast.success('순위가 확정되었습니다')
     await loadData(selectedDivId)
+  }
+
+  async function reopenTieBreak(groupId: string) {
+    const { data: savedS } = await supabase
+      .from('standings').select('participant_id, ranking').eq('group_id', groupId).order('ranking')
+
+    let savedOrder = (savedS ?? []).map(s => s.participant_id as string)
+    if (savedOrder.length === 0) {
+      const groupMatches = matches.filter(m => m.group_id === groupId)
+      const ids = [...new Set([
+        ...groupMatches.map(m => m.participant1_id),
+        ...groupMatches.map(m => m.participant2_id),
+      ].filter(Boolean))] as string[]
+      savedOrder = calculateStandings(groupMatches, ids).map(s => s.participant_id)
+    }
+
+    const newSet = new Set(confirmedGroupIds)
+    newSet.delete(groupId)
+    confirmedGroupIdsRef.current = newSet
+    setConfirmedGroupIds(newSet)
+    setTieBreaks(prev => ({ ...prev, [groupId]: savedOrder }))
   }
 
   function moveInTie(groupId: string, fromIdx: number, dir: -1 | 1) {
@@ -1002,9 +1038,19 @@ export default function ScoresPage() {
                   <div className="flex items-center gap-2">
                     <h2 className="font-semibold">{group.name}</h2>
                     {allDone && !tieBreaks[group.id] ? (
-                      <span className="text-xs text-emerald-400 flex items-center gap-1">
-                        <CheckCircle className="w-3 h-3" /> 완료
-                      </span>
+                      <>
+                        <span className="text-xs text-emerald-400 flex items-center gap-1">
+                          <CheckCircle className="w-3 h-3" /> 완료
+                        </span>
+                        {confirmedGroupIds.has(group.id) && (
+                          <button
+                            onClick={() => reopenTieBreak(group.id)}
+                            className="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1 ml-1"
+                          >
+                            <Pencil className="w-3 h-3" /> 순위 재조정
+                          </button>
+                        )}
+                      </>
                     ) : allDone && tieBreaks[group.id] ? (
                       <span className="text-xs text-orange-400 flex items-center gap-1">
                         <AlertTriangle className="w-3 h-3" /> 동률 — 순위 확정 필요
@@ -1069,6 +1115,55 @@ export default function ScoresPage() {
                         className="w-full py-2 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors">
                         순위 확정 및 본선 진출 처리
                       </button>
+                    </div>
+                  )}
+
+                  {/* 조별 순위 요약표 */}
+                  {completed.length > 0 && (
+                    <div className="glass rounded-xl border border-white/10 overflow-hidden">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-white/10 text-muted-foreground">
+                            <th className="px-3 py-2 text-center font-medium w-8">#</th>
+                            <th className="px-3 py-2 text-left font-medium">{isTeamDiv ? '팀명' : '선수명'}</th>
+                            <th className="px-3 py-2 text-center font-medium w-10">승</th>
+                            <th className="px-3 py-2 text-center font-medium w-10">패</th>
+                            <th className="px-3 py-2 text-center font-medium w-16">{isTeamDiv ? '게임' : '세트'}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {groupStandings.map((s, idx) => {
+                            const isAdvancing = idx < advanceCount
+                            const isTied = tiedIndices.has(idx)
+                            return (
+                              <tr key={s.participant_id} className={cn(
+                                'border-b border-white/5 last:border-0',
+                                isAdvancing && 'bg-primary/5'
+                              )}>
+                                <td className="px-3 py-2 text-center font-bold text-muted-foreground">{idx + 1}</td>
+                                <td className="px-3 py-2">
+                                  <div className="flex items-center gap-1.5">
+                                    {isAdvancing && <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
+                                    <span className={cn('font-medium truncate', isTied && 'text-orange-300')}>
+                                      {getName(s.participant_id)}
+                                    </span>
+                                    {getClub(s.participant_id) && (
+                                      <span className="text-muted-foreground/60 hidden sm:inline shrink-0">
+                                        {getClub(s.participant_id)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="px-3 py-2 text-center font-bold text-primary">{s.wins}</td>
+                                <td className="px-3 py-2 text-center text-muted-foreground">{s.losses}</td>
+                                <td className="px-3 py-2 text-center text-muted-foreground tabular-nums">
+                                  {s.sets_won}-{s.sets_lost}
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   )}
 
