@@ -96,6 +96,8 @@ export default function ScoresPage() {
   const [showMatrix, setShowMatrix] = useState<Record<string, boolean>>({})
   const [confirmedGroupIds, setConfirmedGroupIds] = useState<Set<string>>(new Set())
   const confirmedGroupIdsRef = useRef<Set<string>>(new Set())
+  // DB에 저장된 확정 순위 (group_id → participant_id 배열, ranking 오름차순)
+  const [confirmedRankings, setConfirmedRankings] = useState<Record<string, string[]>>({})
   const supabase = createClient()
 
   useEffect(() => {
@@ -141,6 +143,27 @@ export default function ScoresPage() {
     ])
 
     const allMatches = m ?? []
+
+    // standings를 먼저 로드: singleSlotMatches 가드 및 확정 순위 표시에 활용
+    const groupIds = (g ?? []).map(grp => grp.id)
+    let loadedConfirmedIds = new Set<string>()
+    const rankMap: Record<string, string[]> = {}
+    if (groupIds.length > 0) {
+      const { data: savedS } = await supabase
+        .from('standings')
+        .select('group_id, participant_id, ranking')
+        .in('group_id', groupIds)
+        .order('ranking')
+      loadedConfirmedIds = new Set(savedS?.map(s => s.group_id as string) ?? [])
+      for (const row of savedS ?? []) {
+        if (!rankMap[row.group_id]) rankMap[row.group_id] = []
+        rankMap[row.group_id].push(row.participant_id)
+      }
+    }
+    confirmedGroupIdsRef.current = loadedConfirmedIds
+    setConfirmedGroupIds(loadedConfirmedIds)
+    setConfirmedRankings(rankMap)
+
     const mainPhase = (ph ?? []).find(p => p.phase_type === 'main')
     if (mainPhase) {
       const round2 = allMatches
@@ -166,44 +189,41 @@ export default function ScoresPage() {
       }
 
       // Preliminary-path byes: round 1 matches with exactly one participant
-      // (occurs when totalAdvancing is not a power of 2 — the last slot is unpaired)
-      const singleSlotMatches = allMatches.filter(x =>
-        x.phase_id === mainPhase.id &&
-        x.round === 1 &&
-        x.status === 'pending' &&
-        !x.winner_id &&
-        ((x.participant1_id && !x.participant2_id) || (!x.participant1_id && x.participant2_id))
-      )
-      for (const match of singleSlotMatches) {
-        const participantId = match.participant1_id ?? match.participant2_id
-        if (!participantId) continue
-        await supabase.from('matches').update({ status: 'bye', winner_id: participantId }).eq('id', match.id)
-        match.status = 'bye'
-        match.winner_id = participantId
-        const slot = Math.floor((match.match_number - 1) / 2)
-        const next = round2[slot]
-        if (!next) continue
-        const isP1Slot = match.match_number % 2 === 1
-        if (isP1Slot && !next.participant1_id) {
-          await supabase.from('matches').update({ participant1_id: participantId }).eq('id', next.id)
-          next.participant1_id = participantId
-        } else if (!isP1Slot && !next.participant2_id) {
-          await supabase.from('matches').update({ participant2_id: participantId }).eq('id', next.id)
-          next.participant2_id = participantId
+      // (totalAdvancing이 2의 거듭제곱이 아닐 때 발생하는 구조적 부전승)
+      // 조가 아직 진출하지 않아 슬롯이 비어있는 경우와 구분하기 위해
+      // 모든 예선 조가 standings에 저장된(진출 완료) 경우에만 실행
+      const prelimPhase = (ph ?? []).find(p => p.phase_type === 'preliminary')
+      const prelimGroupsList = (g ?? []).filter(grp => grp.phase_id === prelimPhase?.id)
+      const allPrelimGroupsAdvanced = !prelimPhase ||
+        prelimGroupsList.every(grp => loadedConfirmedIds.has(grp.id))
+
+      if (allPrelimGroupsAdvanced) {
+        const singleSlotMatches = allMatches.filter(x =>
+          x.phase_id === mainPhase.id &&
+          x.round === 1 &&
+          x.status === 'pending' &&
+          !x.winner_id &&
+          ((x.participant1_id && !x.participant2_id) || (!x.participant1_id && x.participant2_id))
+        )
+        for (const match of singleSlotMatches) {
+          const participantId = match.participant1_id ?? match.participant2_id
+          if (!participantId) continue
+          await supabase.from('matches').update({ status: 'bye', winner_id: participantId }).eq('id', match.id)
+          match.status = 'bye'
+          match.winner_id = participantId
+          const slot = Math.floor((match.match_number - 1) / 2)
+          const next = round2[slot]
+          if (!next) continue
+          const isP1Slot = match.match_number % 2 === 1
+          if (isP1Slot && !next.participant1_id) {
+            await supabase.from('matches').update({ participant1_id: participantId }).eq('id', next.id)
+            next.participant1_id = participantId
+          } else if (!isP1Slot && !next.participant2_id) {
+            await supabase.from('matches').update({ participant2_id: participantId }).eq('id', next.id)
+            next.participant2_id = participantId
+          }
         }
       }
-    }
-    // standings 테이블에서 이미 순위가 확정된 그룹 ID를 로드 (tieBreaks 패널 재표시 방지)
-    const groupIds = (g ?? []).map(grp => grp.id)
-    if (groupIds.length > 0) {
-      const { data: savedS } = await supabase
-        .from('standings').select('group_id').in('group_id', groupIds)
-      const newSet = new Set(savedS?.map(s => s.group_id as string) ?? [])
-      confirmedGroupIdsRef.current = newSet
-      setConfirmedGroupIds(newSet)
-    } else {
-      confirmedGroupIdsRef.current = new Set()
-      setConfirmedGroupIds(new Set())
     }
 
     setGroups(g ?? [])
@@ -428,6 +448,21 @@ export default function ScoresPage() {
     const standings = calculateStandings(updatedMatches, participantIds)
     const advanceCount = phase.advancement_count ?? 2
     if (hasTieAtBoundary(standings, advanceCount)) return
+
+    // 자동 진출 시 standings 저장 — loadData의 allPrelimGroupsAdvanced 가드 기준점
+    const standingUpserts = standings.map(s => ({
+      group_id: groupId,
+      participant_id: s.participant_id,
+      wins: s.wins,
+      losses: s.losses,
+      sets_won: s.sets_won,
+      sets_lost: s.sets_lost,
+      points_won: s.points_won ?? 0,
+      points_lost: s.points_lost ?? 0,
+      ranking: s.ranking,
+    }))
+    await supabase.from('standings').upsert(standingUpserts, { onConflict: 'group_id,participant_id' })
+
     await advanceGroup(groupId, phase, standings.map(s => s.participant_id))
   }
 
@@ -498,9 +533,20 @@ export default function ScoresPage() {
     const rawStandings = calculateStandings(groupMatches, participantIds)
     const statsMap = new Map(rawStandings.map(s => [s.participant_id, s]))
 
+    // orderedIds가 사용자가 조정한 순서 — ranking은 반드시 이 순서 기준으로 저장
     const upserts = orderedIds.map((pid, idx) => {
-      const s = statsMap.get(pid) ?? { wins: 0, losses: 0, sets_won: 0, sets_lost: 0, points_won: 0, points_lost: 0 }
-      return { group_id: groupId, participant_id: pid, ...s, ranking: idx + 1 }
+      const s = statsMap.get(pid)
+      return {
+        group_id: groupId,
+        participant_id: pid,
+        wins: s?.wins ?? 0,
+        losses: s?.losses ?? 0,
+        sets_won: s?.sets_won ?? 0,
+        sets_lost: s?.sets_lost ?? 0,
+        points_won: s?.points_won ?? 0,
+        points_lost: s?.points_lost ?? 0,
+        ranking: idx + 1,
+      }
     })
     const { error } = await supabase.from('standings').upsert(upserts, { onConflict: 'group_id,participant_id' })
     if (error) { toast.error('순위 저장 실패: ' + error.message); return }
@@ -511,25 +557,24 @@ export default function ScoresPage() {
     await loadData(selectedDivId)
   }
 
-  async function reopenTieBreak(groupId: string) {
-    const { data: savedS } = await supabase
-      .from('standings').select('participant_id, ranking').eq('group_id', groupId).order('ranking')
-
-    let savedOrder = (savedS ?? []).map(s => s.participant_id as string)
-    if (savedOrder.length === 0) {
+  function reopenTieBreak(groupId: string) {
+    // DB에 저장된 순위가 있으면 그것을 초기값으로 사용 (이전 조정 반영)
+    // 없으면 경기 결과로 재계산
+    const savedOrder = confirmedRankings[groupId]
+    const currentOrder = savedOrder ?? (() => {
       const groupMatches = matches.filter(m => m.group_id === groupId)
       const ids = [...new Set([
         ...groupMatches.map(m => m.participant1_id),
         ...groupMatches.map(m => m.participant2_id),
       ].filter(Boolean))] as string[]
-      savedOrder = calculateStandings(groupMatches, ids).map(s => s.participant_id)
-    }
+      return calculateStandings(groupMatches, ids).map(s => s.participant_id)
+    })()
 
     const newSet = new Set(confirmedGroupIds)
     newSet.delete(groupId)
     confirmedGroupIdsRef.current = newSet
     setConfirmedGroupIds(newSet)
-    setTieBreaks(prev => ({ ...prev, [groupId]: savedOrder }))
+    setTieBreaks(prev => ({ ...prev, [groupId]: currentOrder }))
   }
 
   function moveInTie(groupId: string, fromIdx: number, dir: -1 | 1) {
