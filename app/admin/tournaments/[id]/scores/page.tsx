@@ -197,30 +197,39 @@ export default function ScoresPage() {
       const allPrelimGroupsAdvanced = !prelimPhase ||
         prelimGroupsList.every(grp => loadedConfirmedIds.has(grp.id))
 
+      // 구조적 부전승(structural bye)은 totalAdvancing이 2의 거듭제곱이 아닐 때만 발생.
+      // standings 저장 직후 advanceGroup 완료 전 사이의 경쟁 조건을 방지하기 위해
+      // 실제로 구조적 부전승이 필요한 경우에만 단독 슬롯 처리를 실행한다.
       if (allPrelimGroupsAdvanced) {
-        const singleSlotMatches = allMatches.filter(x =>
-          x.phase_id === mainPhase.id &&
-          x.round === 1 &&
-          x.status === 'pending' &&
-          !x.winner_id &&
-          ((x.participant1_id && !x.participant2_id) || (!x.participant1_id && x.participant2_id))
-        )
-        for (const match of singleSlotMatches) {
-          const participantId = match.participant1_id ?? match.participant2_id
-          if (!participantId) continue
-          await supabase.from('matches').update({ status: 'bye', winner_id: participantId }).eq('id', match.id)
-          match.status = 'bye'
-          match.winner_id = participantId
-          const slot = Math.floor((match.match_number - 1) / 2)
-          const next = round2[slot]
-          if (!next) continue
-          const isP1Slot = match.match_number % 2 === 1
-          if (isP1Slot && !next.participant1_id) {
-            await supabase.from('matches').update({ participant1_id: participantId }).eq('id', next.id)
-            next.participant1_id = participantId
-          } else if (!isP1Slot && !next.participant2_id) {
-            await supabase.from('matches').update({ participant2_id: participantId }).eq('id', next.id)
-            next.participant2_id = participantId
+        const totalAdvancingExpected = prelimGroupsList.length * (prelimPhase?.advancement_count ?? 2)
+        const isPowerOfTwo = totalAdvancingExpected > 0 && (totalAdvancingExpected & (totalAdvancingExpected - 1)) === 0
+        const hasStructuralByes = !isPowerOfTwo
+
+        if (hasStructuralByes) {
+          const singleSlotMatches = allMatches.filter(x =>
+            x.phase_id === mainPhase.id &&
+            x.round === 1 &&
+            x.status === 'pending' &&
+            !x.winner_id &&
+            ((x.participant1_id && !x.participant2_id) || (!x.participant1_id && x.participant2_id))
+          )
+          for (const match of singleSlotMatches) {
+            const participantId = match.participant1_id ?? match.participant2_id
+            if (!participantId) continue
+            await supabase.from('matches').update({ status: 'bye', winner_id: participantId }).eq('id', match.id)
+            match.status = 'bye'
+            match.winner_id = participantId
+            const slot = Math.floor((match.match_number - 1) / 2)
+            const next = round2[slot]
+            if (!next) continue
+            const isP1Slot = match.match_number % 2 === 1
+            if (isP1Slot && !next.participant1_id) {
+              await supabase.from('matches').update({ participant1_id: participantId }).eq('id', next.id)
+              next.participant1_id = participantId
+            } else if (!isP1Slot && !next.participant2_id) {
+              await supabase.from('matches').update({ participant2_id: participantId }).eq('id', next.id)
+              next.participant2_id = participantId
+            }
           }
         }
       }
@@ -1072,7 +1081,16 @@ export default function ScoresPage() {
                 ? tMap.get(pid)?.club
                 : pMap.get(pid)?.club
 
-              const rankedParticipants = groupStandings.map(s => ({
+              // 확정된 조는 DB에 저장된 순위 순서로 표시
+              const savedOrder = confirmedRankings[group.id]
+              const isGroupConfirmed = confirmedGroupIds.has(group.id)
+              const displayStandings = (isGroupConfirmed && savedOrder?.length > 0)
+                ? savedOrder
+                    .map(pid => groupStandings.find(s => s.participant_id === pid))
+                    .filter((s): s is (typeof groupStandings)[0] => s != null)
+                : groupStandings
+
+              const rankedParticipants = displayStandings.map(s => ({
                 id: s.participant_id,
                 name: getName(s.participant_id),
                 club: getClub(s.participant_id),
@@ -1177,9 +1195,10 @@ export default function ScoresPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {groupStandings.map((s, idx) => {
+                          {displayStandings.map((s, idx) => {
                             const isAdvancing = idx < advanceCount
-                            const isTied = tiedIndices.has(idx)
+                            const origIdx = groupStandings.findIndex(gs => gs.participant_id === s.participant_id)
+                            const isTied = !isGroupConfirmed && tiedIndices.has(origIdx)
                             return (
                               <tr key={s.participant_id} className={cn(
                                 'border-b border-white/5 last:border-0',
