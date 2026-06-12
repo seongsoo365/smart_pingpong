@@ -31,9 +31,8 @@ export default async function TournamentDetailPage({
     .from('tournaments').select('*, admin:admin_id(name)').eq('id', id).single()
   if (!tournament) notFound()
 
-  const [{ data: divisions }, { data: merges }, { data: questions }] = await Promise.all([
+  const [{ data: divisions }, { data: questions }] = await Promise.all([
     supabase.from('divisions').select('*').eq('tournament_id', id).order('display_order'),
-    supabase.from('division_merges').select('*').eq('tournament_id', id),
     supabase.from('tournament_questions')
       .select('*')
       .eq('tournament_id', id)
@@ -218,12 +217,6 @@ export default async function TournamentDetailPage({
           <ChevronDown className="w-5 h-5 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
         </summary>
         <div className="px-4 pb-4 space-y-3">
-          {(merges?.length ?? 0) > 0 && (
-            <div className="rounded-xl p-4 border border-accent/20 bg-accent/5">
-              <p className="text-sm font-medium text-accent mb-2">통합 부수 안내</p>
-              {merges?.map(m => <p key={m.id} className="text-sm text-muted-foreground">{m.name}</p>)}
-            </div>
-          )}
           {(divisions?.length ?? 0) > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {divisions?.map((div: Division) => (
