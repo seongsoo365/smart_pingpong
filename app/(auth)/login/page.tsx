@@ -18,6 +18,16 @@ function GoogleIcon() {
   )
 }
 
+// Kakao SVG icon
+function KakaoIcon() {
+  return (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
+      <rect width="24" height="24" rx="4" fill="#FEE500" />
+      <path d="M12 5C8.134 5 5 7.462 5 10.5c0 1.946 1.194 3.657 3 4.696L7.5 18l3.13-2.07c.45.07.908.07 1.37.07 3.866 0 7-2.462 7-5.5S15.866 5 12 5z" fill="#3C1E1E" />
+    </svg>
+  )
+}
+
 // Naver SVG icon
 function NaverIcon() {
   return (
@@ -32,7 +42,7 @@ function LoginForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [socialLoading, setSocialLoading] = useState<'google' | 'naver' | null>(null)
+  const [socialLoading, setSocialLoading] = useState<'google' | 'naver' | 'kakao' | null>(null)
   const [providerHint, setProviderHint] = useState<string | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -48,6 +58,14 @@ function LoginForm() {
     naver_no_token: '네이버 로그인 세션 정보를 받지 못했습니다. 다시 시도해주세요.',
     naver_session_failed: '네이버 로그인 세션 생성에 실패했습니다. 다시 시도해주세요.',
     naver_code_missing: '네이버 인증 코드가 없습니다. 다시 시도해주세요.',
+    kakao_not_configured: '카카오 로그인이 설정되지 않았습니다.',
+    kakao_token_failed: '카카오 인증에 실패했습니다.',
+    kakao_profile_failed: '카카오 프로필 조회에 실패했습니다.',
+    kakao_link_failed: '카카오 계정 연동에 실패했습니다.',
+    kakao_unexpected: '카카오 로그인 중 오류가 발생했습니다.',
+    kakao_no_token: '카카오 로그인 세션 정보를 받지 못했습니다. 다시 시도해주세요.',
+    kakao_session_failed: '카카오 로그인 세션 생성에 실패했습니다. 다시 시도해주세요.',
+    kakao_code_missing: '카카오 인증 코드가 없습니다. 다시 시도해주세요.',
     invalid_state: '보안 검증에 실패했습니다. 다시 시도해주세요.',
   }
 
@@ -70,6 +88,11 @@ function LoginForm() {
   function handleNaverLogin() {
     setSocialLoading('naver')
     window.location.href = '/auth/naver'
+  }
+
+  function handleKakaoLogin() {
+    setSocialLoading('kakao')
+    window.location.href = '/auth/kakao'
   }
 
   async function handleLogin(e: React.FormEvent) {
@@ -141,6 +164,14 @@ function LoginForm() {
             >
               <NaverIcon />
               {socialLoading === 'naver' ? '로그인 중...' : '네이버로 로그인'}
+            </button>
+            <button
+              onClick={handleKakaoLogin}
+              disabled={!!socialLoading}
+              className="w-full flex items-center justify-center gap-3 bg-[#FEE500] text-[#3C1E1E] rounded-xl py-2.5 text-sm font-semibold hover:bg-[#fada00] transition-colors disabled:opacity-60"
+            >
+              <KakaoIcon />
+              {socialLoading === 'kakao' ? '로그인 중...' : '카카오로 로그인'}
             </button>
           </div>
 
