@@ -31,8 +31,11 @@ yarn-error.log*
 .pnpm-debug.log*
 *.log
 
-# playwright
+# playwright / verification screenshots
 .playwright-mcp/
+*.png
+*.jpeg
+*.jpg
 
 # env files (can opt-in for committing if needed)
 .env*

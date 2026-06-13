@@ -45,6 +45,9 @@ function LoginForm() {
     naver_profile_failed: '네이버 프로필 조회에 실패했습니다.',
     naver_link_failed: '네이버 계정 연동에 실패했습니다.',
     naver_unexpected: '네이버 로그인 중 오류가 발생했습니다.',
+    naver_no_token: '네이버 로그인 세션 정보를 받지 못했습니다. 다시 시도해주세요.',
+    naver_session_failed: '네이버 로그인 세션 생성에 실패했습니다. 다시 시도해주세요.',
+    naver_code_missing: '네이버 인증 코드가 없습니다. 다시 시도해주세요.',
     invalid_state: '보안 검증에 실패했습니다. 다시 시도해주세요.',
   }
 

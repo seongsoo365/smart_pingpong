@@ -14,7 +14,7 @@ interface NaverUserResponse {
   message: string
   response: {
     id: string
-    email: string
+    email?: string
     name: string
     profile_image?: string
     nickname?: string
@@ -74,10 +74,8 @@ export async function GET(request: NextRequest) {
 
     const naverUser = profileData.response
 
-    // 네이버 이메일 없는 경우 처리
-    if (!naverUser.email) {
-      return NextResponse.redirect(`${origin}/login?error=naver_no_email`)
-    }
+    // 이메일 미제공 시 네이버 고유 ID 기반 합성 이메일 사용, auth.users 정규화와 일치시키기 위해 소문자 처리
+    const email = (naverUser.email ?? `naver_${naverUser.id}@naver.user`).toLowerCase()
 
     // 3. Create/find user in Supabase via admin API
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
@@ -86,7 +84,7 @@ export async function GET(request: NextRequest) {
 
     // 3. 유저 생성 (이미 존재하면 무시)
     const { data: createData } = await adminClient.auth.admin.createUser({
-      email: naverUser.email,
+      email,
       email_confirm: true,
       user_metadata: {
         name: naverUser.name || naverUser.nickname,
@@ -101,8 +99,8 @@ export async function GET(request: NextRequest) {
     if (userId) {
       await adminClient.from('user_profiles').upsert({
         id: userId,
-        email: naverUser.email,
-        name: naverUser.name || naverUser.nickname || naverUser.email.split('@')[0],
+        email,
+        name: naverUser.name || naverUser.nickname || email.split('@')[0],
         avatar_url: naverUser.profile_image ?? null,
         provider: 'naver',
         role: 'tournament_admin',
@@ -113,7 +111,7 @@ export async function GET(request: NextRequest) {
     // 4. Generate magic link for session creation (PKCE-compatible)
     const { data, error: linkError } = await adminClient.auth.admin.generateLink({
       type: 'magiclink',
-      email: naverUser.email,
+      email,
       options: { redirectTo: `${origin}/auth/naver/complete` },
     })
 
