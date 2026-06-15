@@ -46,7 +46,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 ### 라우트 구조
 
-- `app/(public)/` — 비인증 페이지 (홈, 대회 목록/상세, 결과); 서버 컴포넌트
+- `app/(public)/` — 비인증 페이지 (홈, 대회 목록/상세, 선수 전적); 서버 컴포넌트
 - `app/admin/` — 보호된 페이지; `app/admin/layout.tsx`에서 인증 리다이렉트 처리
 - `app/auth/login/` — 로그인 페이지
 - `app/api/` — API 라우트: `/admin/create-user`, `/tournaments/[id]`, `/divisions`, `/divisions/[id]`

@@ -43,10 +43,6 @@ export default async function HomePage() {
             className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-xl font-semibold hover:bg-primary/90 transition-colors">
             대회 목록 보기 <ArrowRight className="w-4 h-4" />
           </Link>
-          <Link href="/results"
-            className="inline-flex items-center gap-2 glass px-6 py-3 rounded-xl font-semibold hover:bg-white/10 transition-colors">
-            결과 이력 조회
-          </Link>
         </div>
       </section>
 
@@ -73,8 +69,8 @@ export default async function HomePage() {
         <section>
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-xl font-bold">최근 종료된 대회</h2>
-            <Link href="/results" className="text-sm text-primary hover:underline flex items-center gap-1">
-              전체 이력 <ArrowRight className="w-3.5 h-3.5" />
+            <Link href="/tournaments?status=completed" className="text-sm text-primary hover:underline flex items-center gap-1">
+              전체 보기 <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -31,9 +31,8 @@ smart_pingpong/
 │   │   ├── layout.tsx
 │   │   ├── page.tsx                    # 홈
 │   │   ├── players/page.tsx            # 선수 전적 조회
-│   │   ├── results/page.tsx            # 대회 결과 이력
 │   │   └── tournaments/
-│   │       ├── page.tsx                # 대회 목록
+│   │       ├── page.tsx                # 대회 목록 (연도 필터: 2026년 시작, 현재 연도까지)
 │   │       └── [id]/
 │   │           ├── page.tsx            # 대회 상세
 │   │           ├── register/page.tsx   # 온라인 참가 신청 (개인/단체)
@@ -70,9 +69,9 @@ smart_pingpong/
 │       └── naver/route.ts              # 네이버 OAuth 시작점
 ├── components/
 │   ├── layout/
-│   │   ├── Header.tsx                  # 공개 페이지 헤더
+│   │   ├── Header.tsx                  # 공개 페이지 헤더 (홈·대회 목록·전적 조회)
 │   │   ├── AdminSidebar.tsx            # 관리자 데스크톱 사이드바
-│   │   ├── MobileBottomNav.tsx         # 관리자 모바일 하단 네비
+│   │   ├── MobileBottomNav.tsx         # 모바일 하단 네비 (홈·대회·전적·관리)
 │   │   ├── SetupBanner.tsx             # Supabase 미설정 시 안내 배너
 │   │   └── ThemeToggle.tsx             # 다크/라이트 모드 토글 버튼
 │   ├── providers/

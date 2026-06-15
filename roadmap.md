@@ -1,6 +1,6 @@
 # Smart Pingpong 로드맵
 
-> 마지막 업데이트: 2026-06-15 (17차 — FEAT-20 다크/라이트 모드 테마 전환 완료)  
+> 마지막 업데이트: 2026-06-16 (19차 — 소셜 로그인(Google/Naver/카카오) 완료, 결과 이력 메뉴 제거)  
 > 상태 표시: ✅ 완료 · 🔄 진행 중 · ⬜ 예정 · ❌ 보류
 
 ---
@@ -51,7 +51,7 @@
 - ✅ 단체전 결과 입력 UI — 경기 방식별 개인 게임(단식/복식) 승패 입력
 
 ### 공개 페이지
-- ✅ 대회 목록 / 상세 / 결과 이력
+- ✅ 대회 목록 / 상세 (결과 이력은 대회 목록과 중복으로 제거)
 - ✅ 예선 상대 전적 매트릭스 표시
 - ✅ 본선 브라켓 뷰 (선수명 + 소속 표시, 단체전 팀 지원)
 - ✅ 커스텀 404 / 500 에러 페이지
@@ -141,7 +141,7 @@ SUPABASE_SERVICE_ROLE_KEY      = eyJ...   ← 서버 전용, NEXT_PUBLIC_ 붙이
 | FEAT-13 | **관리자 계정 생성 비밀번호 정책** — 계정 생성 폼(`AddAdminForm`)에 최소 8자·영문+숫자 조합 클라이언트 검증 추가, 강도 인디케이터 표시 | ✅ |
 | FEAT-14 | **참가 신청 중복 방지** — 이름+연락처 기준 동일 대회 중복 신청 DB 체크, "이미 신청된 연락처" 안내 | ✅ |
 | FEAT-15 | **참가 신청 연락처 형식 검증** — 전화번호 정규식 검증(`010-XXXX-XXXX`) + 자동 포맷팅, 공개 신청 폼 적용 | ✅ |
-| FEAT-19 | **카카오 로그인 연동** — 카카오 커스텀 OAuth 플로우, 로그인/회원가입 페이지 카카오 버튼 추가, Supabase 계정 연동 | ⬜ |
+| FEAT-19 | **카카오 로그인 연동** — 카카오 커스텀 OAuth 플로우, 로그인/회원가입 페이지 카카오 버튼 추가, Supabase 계정 연동 | ✅ |
 | FEAT-20 | **다크/라이트 모드** — `next-themes` ThemeProvider, CSS 변수 분리(`:root` 라이트 / `.dark` 다크), Header·AdminSidebar 토글 버튼, 브라켓 연결선·도움말 팝오버 테마 대응 | ✅ |
 
 ---
@@ -260,7 +260,7 @@ SUPABASE_SERVICE_ROLE_KEY      = eyJ...   ← 서버 전용, NEXT_PUBLIC_ 붙이
 | 동의 항목 설정 | 닉네임(필수), 이메일(필수 또는 선택) 동의 항목 활성화 |
 | Vercel 환경 변수 | `KAKAO_CLIENT_ID`, `KAKAO_CLIENT_SECRET` 추가 |
 
-- **상태:** ⬜
+- **상태:** ✅
 
 ---
 
@@ -268,19 +268,19 @@ SUPABASE_SERVICE_ROLE_KEY      = eyJ...   ← 서버 전용, NEXT_PUBLIC_ 붙이
 
 ## 5단계 — 소셜 로그인 활성화 체크리스트
 
-> FEAT-16/17/18 코드 구현은 완료. 아래 외부 설정만 완료하면 Google/Naver 로그인 즉시 동작.
+> 모든 소셜 로그인(Google / Naver / 카카오) 설정 완료.
 
 | # | 항목 | 내용 | 상태 |
 |---|------|------|------|
-| 1 | **Google Cloud Console** | OAuth 앱 생성 → Client ID/Secret 발급 → Supabase Dashboard > Authentication > Providers > Google에 입력 | ⬜ |
-| 2 | **Google 리다이렉트 URI** | Google Cloud Console에 `https://<supabase-project>.supabase.co/auth/v1/callback` 추가 | ⬜ |
+| 1 | **Google Cloud Console** | OAuth 앱 생성 → Client ID/Secret 발급 → Supabase Dashboard > Authentication > Providers > Google에 입력 | ✅ |
+| 2 | **Google 리다이렉트 URI** | Google Cloud Console에 `https://<supabase-project>.supabase.co/auth/v1/callback` 추가 | ✅ |
 | 3 | **Naver Developers** | 앱 설정 → API 설정 → Callback URL에 `{배포 도메인}/auth/callback/naver` 추가 | ✅ |
 | 4 | **Vercel 환경 변수** | `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET` 추가 | ✅ |
 | 5 | **Supabase Redirect URLs** | Authentication > URL Configuration에 `localhost:3000/**`, Vercel 도메인, `/auth/naver/complete` 추가 | ✅ |
 | 6 | **DB 마이그레이션** | Supabase SQL Editor에서 `013_password_changed.sql` → `015_fix_trigger_provider.sql` 실행 (public 스키마 명시, search_path 설정) | ✅ |
-| 7 | **Kakao Developers** | 앱 생성 → REST API 키 발급 → 카카오 로그인 활성화 → Redirect URI 등록 | ⬜ |
-| 8 | **카카오 동의 항목** | 앱 > 카카오 로그인 > 동의 항목에서 닉네임·이메일 활성화 | ⬜ |
-| 9 | **Vercel 환경 변수 (카카오)** | `KAKAO_CLIENT_ID`, `KAKAO_CLIENT_SECRET` 추가 | ⬜ |
+| 7 | **Kakao Developers** | 앱 생성 → REST API 키 발급 → 카카오 로그인 활성화 → Redirect URI 등록 | ✅ |
+| 8 | **카카오 동의 항목** | 앱 > 카카오 로그인 > 동의 항목에서 닉네임·이메일 활성화 | ✅ |
+| 9 | **Vercel 환경 변수 (카카오)** | `KAKAO_CLIENT_ID`, `KAKAO_CLIENT_SECRET` 추가 | ✅ |
 
 ---
 
@@ -306,3 +306,5 @@ SUPABASE_SERVICE_ROLE_KEY      = eyJ...   ← 서버 전용, NEXT_PUBLIC_ 붙이
 | v1.6 | 2026-06-09 | FEAT-11~18 Playwright 브라우저 검증 완료, ARCHITECT.md 프로젝트 구조 문서 추가, 소셜 로그인 활성화 체크리스트 정리 |
 | v1.7 | 2026-06-09 | 네이버 로그인 실서비스 연동 완료 — Vercel 환경변수, DB 트리거 public 스키마 수정, 임플리싯 플로우 클라이언트 처리 페이지 추가 |
 | v1.8 | 2026-06-15 | FEAT-20 다크/라이트 모드 전환 — ThemeProvider, CSS 변수 분리, 토글 버튼, 브라켓 선·도움말 팝오버 테마 대응 |
+| v1.9 | 2026-06-16 | FEAT-19 카카오 로그인 완료, Google 로그인 외부 설정 완료 — 전체 소셜 로그인(Google/Naver/카카오) 활성화 |
+| v2.0 | 2026-06-16 | 결과 이력 페이지 제거(대회 목록과 중복), 대회 목록 연도 필터 2026년 기준으로 변경 |

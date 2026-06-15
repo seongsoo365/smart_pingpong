@@ -36,7 +36,8 @@ export default async function TournamentsPage({
   }
 
   const currentYear = new Date().getFullYear()
-  const years = Array.from({ length: 5 }, (_, i) => currentYear + 1 - i)
+  const START_YEAR = 2026
+  const years = Array.from({ length: currentYear - START_YEAR + 1 }, (_, i) => currentYear - i)
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
