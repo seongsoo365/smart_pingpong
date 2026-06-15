@@ -73,7 +73,10 @@ smart_pingpong/
 │   │   ├── Header.tsx                  # 공개 페이지 헤더
 │   │   ├── AdminSidebar.tsx            # 관리자 데스크톱 사이드바
 │   │   ├── MobileBottomNav.tsx         # 관리자 모바일 하단 네비
-│   │   └── SetupBanner.tsx             # Supabase 미설정 시 안내 배너
+│   │   ├── SetupBanner.tsx             # Supabase 미설정 시 안내 배너
+│   │   └── ThemeToggle.tsx             # 다크/라이트 모드 토글 버튼
+│   ├── providers/
+│   │   └── ThemeProvider.tsx           # next-themes ThemeProvider 클라이언트 래퍼
 │   ├── tournament/
 │   │   ├── TournamentCard.tsx          # 대회 카드 (목록용)
 │   │   ├── BracketView.tsx             # 본선 브라켓 시각화
@@ -245,14 +248,33 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 ## UI 규칙
 
+### 테마 시스템
+
+`next-themes` + Tailwind 4 CSS 변수 기반 다크/라이트 모드 지원.
+
+- `app/layout.tsx` — `<ThemeProvider>` (`components/providers/ThemeProvider.tsx`) 로 전체 감싸기. `defaultTheme="dark"`, `attribute="class"`.
+- `html` 태그에 `dark` 클래스 유무로 테마 전환 (`suppressHydrationWarning` 필수).
+- `components/layout/ThemeToggle.tsx` — Sun/Moon 토글 버튼. `Header`(공개, 모바일 포함) 및 `AdminSidebar`(관리자 데스크톱) 에 배치.
+
+### CSS 변수 구조 (`app/globals.css`)
+
+| 선택자 | 역할 |
+|--------|------|
+| `:root` | 라이트 모드 기본값 (흰 배경, 어두운 텍스트) |
+| `.dark` | 다크 모드 값 (Deep Navy `#0F172A`, 밝은 텍스트) |
+| `--bracket-line` | 브라켓 연결선 — 라이트: 블루 계열 / 다크: 화이트 계열 |
+
 | 항목 | 값 |
 |------|-----|
-| 배경색 | `#0F172A` |
-| Primary | `#3B82F6` |
-| Accent | `#F97316` |
-| 글래스 카드 | `glass` CSS 유틸 (`rgba(255,255,255,0.05) + backdrop-blur`) |
+| Primary | `#3B82F6` (라이트/다크 공통) |
+| Accent | `#F97316` (라이트/다크 공통) |
+| 다크 배경 | `oklch(0.1 0.02 250)` ≈ `#0F172A` |
+| 라이트 배경 | `oklch(0.98 0.005 250)` ≈ `#F8FAFC` |
+| 글래스 카드 | `.glass` CSS 유틸 — 다크: `rgba(white/5%) + blur`, 라이트: `rgba(black/3%) + blur` |
 | 토스트 | `sonner` |
 | 레이아웃 | 모바일: `MobileBottomNav` / 데스크톱: `AdminSidebar` |
+
+> **주의:** 하드코딩된 `rgba(255,255,255,0.x)` / `border-white/N` 사용 금지. 대신 `border-border`, `bg-muted`, `text-muted-foreground` 등 CSS 변수 토큰을 사용해야 테마 전환 시 정상 동작함.
 
 ---
 

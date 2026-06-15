@@ -1,6 +1,6 @@
 # Smart Pingpong 로드맵
 
-> 마지막 업데이트: 2026-06-09 (15차 — FEAT-11~18 Playwright 검증 완료, 소셜 로그인 설정 가이드 추가)  
+> 마지막 업데이트: 2026-06-15 (17차 — FEAT-20 다크/라이트 모드 테마 전환 완료)  
 > 상태 표시: ✅ 완료 · 🔄 진행 중 · ⬜ 예정 · ❌ 보류
 
 ---
@@ -72,6 +72,11 @@
 - ✅ select 드롭다운 가독성 수정 — 다크 테마에서 흰 배경에 흰 글씨 문제 해결 (`globals.css option 스타일`)
 - ✅ `.gitignore` — `*.log` 및 `.playwright-mcp/` 제외 추가
 
+### UI / UX
+- ✅ 다크/라이트 모드 전환 — `next-themes` ThemeProvider, Sun/Moon 토글 버튼 (Header · AdminSidebar)
+- ✅ 브라켓 연결선 테마 대응 — 라이트: 블루 계열, 다크: 화이트 계열 (`--bracket-line` CSS 변수)
+- ✅ 도움말 풍선말 불투명 처리 — `glass`(반투명) → `bg-popover`(솔리드)로 가독성 개선
+
 ---
 
 ## 1단계 — 배포 준비
@@ -136,6 +141,8 @@ SUPABASE_SERVICE_ROLE_KEY      = eyJ...   ← 서버 전용, NEXT_PUBLIC_ 붙이
 | FEAT-13 | **관리자 계정 생성 비밀번호 정책** — 계정 생성 폼(`AddAdminForm`)에 최소 8자·영문+숫자 조합 클라이언트 검증 추가, 강도 인디케이터 표시 | ✅ |
 | FEAT-14 | **참가 신청 중복 방지** — 이름+연락처 기준 동일 대회 중복 신청 DB 체크, "이미 신청된 연락처" 안내 | ✅ |
 | FEAT-15 | **참가 신청 연락처 형식 검증** — 전화번호 정규식 검증(`010-XXXX-XXXX`) + 자동 포맷팅, 공개 신청 폼 적용 | ✅ |
+| FEAT-19 | **카카오 로그인 연동** — 카카오 커스텀 OAuth 플로우, 로그인/회원가입 페이지 카카오 버튼 추가, Supabase 계정 연동 | ⬜ |
+| FEAT-20 | **다크/라이트 모드** — `next-themes` ThemeProvider, CSS 변수 분리(`:root` 라이트 / `.dark` 다크), Header·AdminSidebar 토글 버튼, 브라켓 연결선·도움말 팝오버 테마 대응 | ✅ |
 
 ---
 
@@ -230,6 +237,33 @@ SUPABASE_SERVICE_ROLE_KEY      = eyJ...   ← 서버 전용, NEXT_PUBLIC_ 붙이
 
 ---
 
+### FEAT-19 · 카카오 로그인 연동
+
+> **배경:** 카카오는 국내 최대 소셜 로그인 플랫폼. 네이버와 마찬가지로 Supabase가 카카오를 네이티브로 지원하지 않으므로 커스텀 OAuth 플로우로 구현한다.
+
+#### 신규 파일
+- `app/auth/kakao/route.ts` — 카카오 인가 URL 생성 후 redirect (CSRF 방지용 `state` 쿠키 설정)
+- `app/auth/callback/kakao/route.ts` — 인가 코드 수신 → 카카오 토큰 교환 → 사용자 프로필 조회 → Supabase 계정 연동 (`signInWithPassword` 또는 신규 `createUser`)
+
+#### 기존 변경
+- `app/(auth)/login/page.tsx` — 카카오 로그인 버튼 추가 (카카오 공식 노란색 `#FEE500` + 로고 아이콘)
+- `app/(auth)/register/page.tsx` — 카카오 소셜 가입 버튼 추가
+- FEAT-17에서 구현한 로딩 스피너·중복 클릭 방지 패턴 카카오 버튼에도 적용
+- `supabase/migrations/016_kakao_provider.sql` — `user_profiles.provider` 체크 제약에 `'kakao'` 추가 (필요 시)
+
+#### 외부 설정
+| 항목 | 내용 |
+|------|------|
+| Kakao Developers 앱 생성 | developers.kakao.com → 내 애플리케이션 → 앱 추가 → REST API 키 발급 |
+| 카카오 로그인 활성화 | 앱 > 카카오 로그인 > 활성화 ON |
+| Redirect URI 등록 | `{배포 도메인}/auth/callback/kakao`, `http://localhost:3000/auth/callback/kakao` 등록 |
+| 동의 항목 설정 | 닉네임(필수), 이메일(필수 또는 선택) 동의 항목 활성화 |
+| Vercel 환경 변수 | `KAKAO_CLIENT_ID`, `KAKAO_CLIENT_SECRET` 추가 |
+
+- **상태:** ⬜
+
+---
+
 ---
 
 ## 5단계 — 소셜 로그인 활성화 체크리스트
@@ -244,6 +278,9 @@ SUPABASE_SERVICE_ROLE_KEY      = eyJ...   ← 서버 전용, NEXT_PUBLIC_ 붙이
 | 4 | **Vercel 환경 변수** | `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET` 추가 | ✅ |
 | 5 | **Supabase Redirect URLs** | Authentication > URL Configuration에 `localhost:3000/**`, Vercel 도메인, `/auth/naver/complete` 추가 | ✅ |
 | 6 | **DB 마이그레이션** | Supabase SQL Editor에서 `013_password_changed.sql` → `015_fix_trigger_provider.sql` 실행 (public 스키마 명시, search_path 설정) | ✅ |
+| 7 | **Kakao Developers** | 앱 생성 → REST API 키 발급 → 카카오 로그인 활성화 → Redirect URI 등록 | ⬜ |
+| 8 | **카카오 동의 항목** | 앱 > 카카오 로그인 > 동의 항목에서 닉네임·이메일 활성화 | ⬜ |
+| 9 | **Vercel 환경 변수 (카카오)** | `KAKAO_CLIENT_ID`, `KAKAO_CLIENT_SECRET` 추가 | ⬜ |
 
 ---
 
@@ -268,3 +305,4 @@ SUPABASE_SERVICE_ROLE_KEY      = eyJ...   ← 서버 전용, NEXT_PUBLIC_ 붙이
 | v1.5 | 2026-06-09 | FEAT-18 셀프 회원가입(이메일·소셜), FEAT-16 초대 방식 전환, FEAT-17 소셜 로그인 UX 개선 |
 | v1.6 | 2026-06-09 | FEAT-11~18 Playwright 브라우저 검증 완료, ARCHITECT.md 프로젝트 구조 문서 추가, 소셜 로그인 활성화 체크리스트 정리 |
 | v1.7 | 2026-06-09 | 네이버 로그인 실서비스 연동 완료 — Vercel 환경변수, DB 트리거 public 스키마 수정, 임플리싯 플로우 클라이언트 처리 페이지 추가 |
+| v1.8 | 2026-06-15 | FEAT-20 다크/라이트 모드 전환 — ThemeProvider, CSS 변수 분리, 토글 버튼, 브라켓 선·도움말 팝오버 테마 대응 |
