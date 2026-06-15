@@ -33,7 +33,7 @@ export function HelpPopover({ title, children }: HelpPopoverProps) {
       </button>
 
       {open && (
-        <div className="absolute left-0 top-7 z-50 w-80 glass border border-white/15 rounded-2xl shadow-xl p-4 space-y-3">
+        <div className="absolute left-0 top-7 z-50 w-80 bg-popover border border-border rounded-2xl shadow-xl p-4 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-sm font-semibold text-primary">{title}</p>
             <button

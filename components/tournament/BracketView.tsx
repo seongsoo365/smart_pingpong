@@ -64,7 +64,7 @@ export default function BracketView({ matches, totalRounds, isTeam = false }: Pr
                       const yMid = (yTop + yBot) / 2
                       const xMid = CONN_W / 2
                       return (
-                        <g key={p} stroke="rgba(255,255,255,0.18)" strokeWidth="1" fill="none">
+                        <g key={p} style={{ stroke: 'var(--bracket-line)' }} strokeWidth="1.5" fill="none">
                           <polyline points={`0,${yTop} ${xMid},${yTop} ${xMid},${yBot} 0,${yBot}`} />
                           <line x1={xMid} y1={yMid} x2={CONN_W} y2={yMid} />
                         </g>
@@ -72,7 +72,7 @@ export default function BracketView({ matches, totalRounds, isTeam = false }: Pr
                     })}
                     {n % 2 === 1 && (() => {
                       const yLone = matchAreaH * (2 * (n - 1) + 1) / (2 * n)
-                      return <line key="lone" x1="0" y1={yLone} x2={CONN_W} y2={yLone} stroke="rgba(255,255,255,0.18)" strokeWidth="1" />
+                      return <line key="lone" x1="0" y1={yLone} x2={CONN_W} y2={yLone} style={{ stroke: 'var(--bracket-line)' }} strokeWidth="1.5" />
                     })()}
                   </svg>
                 </div>
@@ -92,7 +92,7 @@ function BracketMatchCard({ match, isTeam }: { match: BracketMatch; isTeam: bool
   const sets = (match.sets ?? []) as MatchSet[]
 
   return (
-    <div className="glass rounded-xl overflow-hidden border border-white/10" style={{ width: CARD_W }}>
+    <div className="glass rounded-xl overflow-hidden border border-border" style={{ width: CARD_W }}>
       <ParticipantRow
         name={p1Name}
         label={p1Label}
@@ -102,7 +102,7 @@ function BracketMatchCard({ match, isTeam }: { match: BracketMatch; isTeam: bool
         isEmpty={!p1Name}
         isTeam={isTeam}
       />
-      <div className="h-px bg-white/10" />
+      <div className="h-px bg-border" />
       <ParticipantRow
         name={isBye ? '부전승' : p2Name}
         label={isBye ? undefined : p2Label}
@@ -114,7 +114,7 @@ function BracketMatchCard({ match, isTeam }: { match: BracketMatch; isTeam: bool
       />
       {/* 단체전 개인경기 결과 요약 */}
       {isTeam && isDone && sets.length > 0 && (
-        <div className="flex items-center justify-center gap-0.5 px-3 py-1.5 border-t border-white/10">
+        <div className="flex items-center justify-center gap-0.5 px-3 py-1.5 border-t border-border">
           {sets.map((s, i) => {
             const p1Won = s.score1 > s.score2
             const p2Won = s.score2 > s.score1
@@ -124,7 +124,7 @@ function BracketMatchCard({ match, isTeam }: { match: BracketMatch; isTeam: bool
                 title={p1Won ? (p1Name ?? '팀1') : p2Won ? (p2Name ?? '팀2') : '-'}
                 className={cn(
                   'w-2.5 h-2.5 rounded-full shrink-0',
-                  p1Won ? 'bg-primary' : p2Won ? 'bg-accent' : 'bg-white/20'
+                  p1Won ? 'bg-primary' : p2Won ? 'bg-accent' : 'bg-muted-foreground/30'
                 )}
               />
             )

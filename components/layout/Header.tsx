@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Trophy } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import ThemeToggle from './ThemeToggle'
 
 const navLinks = [
   { href: '/',            label: '홈' },
@@ -41,12 +42,15 @@ export default function Header() {
           ))}
         </nav>
 
-        <Link
-          href="/admin"
-          className="hidden md:flex items-center gap-2 px-4 py-2 rounded-lg glass text-sm font-medium hover:bg-white/10 transition-colors"
-        >
-          관리자
-        </Link>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <Link
+            href="/admin"
+            className="hidden md:flex items-center gap-2 px-4 py-2 rounded-lg glass text-sm font-medium hover:bg-white/10 transition-colors"
+          >
+            관리자
+          </Link>
+        </div>
       </div>
     </header>
   )

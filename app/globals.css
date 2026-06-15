@@ -48,21 +48,64 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Smart Pingpong — 다크 모드 기본 / Glassmorphism 디자인 */
+/* Smart Pingpong — 라이트 모드 기본 / 다크 모드 .dark 클래스로 전환 */
 :root {
+  --background: oklch(0.98 0.005 250);
+  --foreground: oklch(0.12 0.02 250);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.12 0.02 250);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.12 0.02 250);
+  --primary: oklch(0.6 0.2 260);            /* Electric Blue #3B82F6 */
+  --primary-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.93 0.005 250);
+  --secondary-foreground: oklch(0.2 0.02 250);
+  --muted: oklch(0.93 0.005 250);
+  --muted-foreground: oklch(0.45 0.01 250);
+  --accent: oklch(0.65 0.22 40);            /* Vivid Orange #F97316 */
+  --accent-foreground: oklch(0.98 0 0);
+  --destructive: oklch(0.55 0.22 25);
+  --border: oklch(0 0 0 / 12%);
+  --input: oklch(0 0 0 / 8%);
+  --ring: oklch(0.6 0.2 260);
+  --chart-1: oklch(0.6 0.2 260);
+  --chart-2: oklch(0.65 0.22 40);
+  --chart-3: oklch(0.6 0.18 160);
+  --chart-4: oklch(0.7 0.15 300);
+  --chart-5: oklch(0.55 0.18 200);
+  --radius: 0.75rem;
+  --sidebar: oklch(0.95 0.005 250);
+  --sidebar-foreground: oklch(0.12 0.02 250);
+  --sidebar-primary: oklch(0.6 0.2 260);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-accent: oklch(0.9 0.005 250);
+  --sidebar-accent-foreground: oklch(0.2 0.02 250);
+  --sidebar-border: oklch(0 0 0 / 12%);
+  --sidebar-ring: oklch(0.6 0.2 260);
+}
+
+/* 브라켓 연결선 색상 — 테마 전환 시 SVG stroke에 적용 */
+:root {
+  --bracket-line: oklch(0.6 0.2 260 / 60%);   /* blue 계열 */
+}
+.dark {
+  --bracket-line: oklch(1 0 0 / 40%);          /* white 계열 */
+}
+
+.dark {
   --background: oklch(0.1 0.02 250);        /* Deep Navy #0F172A */
   --foreground: oklch(0.95 0.01 250);
   --card: oklch(0.14 0.02 250);
   --card-foreground: oklch(0.95 0.01 250);
   --popover: oklch(0.14 0.02 250);
   --popover-foreground: oklch(0.95 0.01 250);
-  --primary: oklch(0.6 0.2 260);            /* Electric Blue #3B82F6 */
+  --primary: oklch(0.6 0.2 260);
   --primary-foreground: oklch(0.98 0 0);
   --secondary: oklch(0.18 0.02 250);
   --secondary-foreground: oklch(0.85 0.01 250);
   --muted: oklch(0.18 0.02 250);
   --muted-foreground: oklch(0.55 0.01 250);
-  --accent: oklch(0.65 0.22 40);            /* Vivid Orange #F97316 */
+  --accent: oklch(0.65 0.22 40);
   --accent-foreground: oklch(0.98 0 0);
   --destructive: oklch(0.6 0.22 25);
   --border: oklch(1 0 0 / 8%);
@@ -86,17 +129,28 @@
 
 /* Glass card utility */
 .glass {
-  background: oklch(1 0 0 / 5%);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+}
+.dark .glass {
+  background: oklch(1 0 0 / 5%);
   border: 1px solid oklch(1 0 0 / 10%);
+}
+:root:not(.dark) .glass {
+  background: oklch(0 0 0 / 3%);
+  border: 1px solid oklch(0 0 0 / 8%);
 }
 
 /* Gradient background */
-.gradient-bg {
+.dark .gradient-bg {
   background: radial-gradient(ellipse at top left, oklch(0.25 0.08 260 / 40%) 0%, transparent 50%),
               radial-gradient(ellipse at bottom right, oklch(0.25 0.1 40 / 20%) 0%, transparent 50%),
               oklch(0.1 0.02 250);
+}
+:root:not(.dark) .gradient-bg {
+  background: radial-gradient(ellipse at top left, oklch(0.7 0.08 260 / 12%) 0%, transparent 50%),
+              radial-gradient(ellipse at bottom right, oklch(0.75 0.1 40 / 8%) 0%, transparent 50%),
+              oklch(0.97 0.005 250);
 }
 
 /* Status badge colors */
@@ -117,10 +171,14 @@
     @apply font-sans;
   }
 
-  /* 네이티브 select 드롭다운: 다크 테마에서 옵션이 흰 배경에 흰 글씨가 되는 문제 방지 */
-  select option {
+  /* 네이티브 select 드롭다운 색상 — 테마별 분기 */
+  .dark select option {
     background-color: #1e293b;
     color: #f1f5f9;
+  }
+  :root:not(.dark) select option {
+    background-color: #f1f5f9;
+    color: #1e293b;
   }
 
   /* 텍스트 입력 필드 한글 IME 기본 활성화 (숫자·이메일·URL 제외) */

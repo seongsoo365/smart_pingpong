@@ -5,6 +5,7 @@ import { Trophy, Users, LayoutDashboard, LogOut, Shield } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import ThemeToggle from './ThemeToggle'
 
 const navItems = [
   { href: '/admin',                  icon: LayoutDashboard, label: '대시보드',    exact: true },
@@ -52,6 +53,10 @@ export default function AdminSidebar() {
         })}
       </nav>
 
+      <div className="flex items-center gap-2 px-2 mb-1">
+        <ThemeToggle />
+        <span className="text-xs text-muted-foreground">테마</span>
+      </div>
       <button
         onClick={handleLogout}
         className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:bg-white/5 hover:text-foreground transition-colors w-full"

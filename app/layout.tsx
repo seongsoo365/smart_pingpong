@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Toaster } from '@/components/ui/sonner'
 import SetupBanner from '@/components/layout/SetupBanner'
+import ThemeProvider from '@/components/providers/ThemeProvider'
 import { supabaseConfigured } from '@/lib/supabase/server'
 import './globals.css'
 
@@ -22,10 +23,14 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ko" className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-      <body className="gradient-bg min-h-dvh">
-        {supabaseConfigured ? children : <SetupBanner />}
-        <Toaster richColors position="top-center" />
+    <html lang="ko" className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning>
+      <body className="min-h-dvh">
+        <ThemeProvider>
+          <div className="gradient-bg min-h-dvh">
+            {supabaseConfigured ? children : <SetupBanner />}
+            <Toaster richColors position="top-center" />
+          </div>
+        </ThemeProvider>
       </body>
     </html>
   )
