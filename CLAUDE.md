@@ -47,11 +47,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 ### 라우트 구조
 
 - `app/(public)/` — 비인증 페이지 (홈, 대회 목록/상세, 일회성 게임 기록 등록, 선수 전적); 서버 컴포넌트
-- `app/(public)/games/new/` — 일회성 게임 기록 등록 (로그인 불필요, 약식/세트별 모드)
+- `app/(public)/games/new/` — 일회성 게임 기록 등록 (로그인 불필요, 약식/세트별 모드); 등록 성공 시 게임 ID를 `localStorage['my_casual_games']`에 저장하고 하단에 "내가 등록한 기록" 목록 표시
 - `app/admin/` — 보호된 페이지; `app/admin/layout.tsx`에서 인증 리다이렉트 처리
 - `app/admin/games/` — 일회성 게임 관리 (목록, 등록/수정/삭제)
 - `app/auth/login/` — 로그인 페이지
-- `app/api/` — API 라우트: `/admin/create-user`, `/tournaments/[id]`, `/divisions`, `/divisions/[id]`, `/games`, `/games/[id]`, `/players/records`, `/players/search`
+- `app/api/` — API 라우트: `/admin/create-user`, `/tournaments/[id]`, `/divisions`, `/divisions/[id]`, `/games`(GET `?ids=` 파라미터로 특정 ID 필터 지원), `/games/[id]`, `/players/records`, `/players/search`
 
 ### Supabase 클라이언트 패턴
 
@@ -133,12 +133,13 @@ tournament (대회)
 - `lib/utils/bracket.ts` — 시드 단일 토너먼트. `generateSeededBracket(ids)`는 `[p1|null, p2|null][]` 반환; `null`은 부전승. `getBracketRounds(n)`과 `nextPowerOfTwo(n)`으로 전체 라운드를 한 번에 미리 생성.
 - `lib/utils/roundrobin.ts` — 원형법 일정 생성; `distributeIntoGroups(players, n)`은 뱀 시드 방식 사용.
 - `lib/utils/standings.ts` — 승수 → 세트 득실 → 점수 득실 순으로 순위 계산. `hasTieAtBoundary()`와 `getTieGroups()`로 동률 감지.
+- `lib/utils/myGames.ts` — 비로그인 사용자가 등록한 게임 ID를 `localStorage`에 보관. `addMyGame(id)` / `getMyGameIds()` / `removeMyGame(id)`. SSR 환경에서 안전하게 동작(`typeof window` 가드 포함).
 
 ### 컴포넌트
 
 - `components/ui/` — shadcn 스타일 기본 컴포넌트 (Button, Card, Badge, Tabs, Dialog 등)
 - `components/layout/` — `Header`, `AdminSidebar`, `MobileBottomNav`, `SetupBanner`
-- `components/tournament/` — `TournamentCard`, `StandingsTable`, `BracketView`, `GroupMatrix`
+- `components/tournament/` — `TournamentCard`, `StandingsTable`, `BracketView`, `GroupMatrix`, `QnaSection`, `MyGameHistory`(내가 등록한 일회성 게임 목록, localStorage 기반)
 
 ### UI 규칙
 

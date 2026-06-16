@@ -1,9 +1,22 @@
 import { createClientSafe } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const supabase = await createClientSafe()
   if (!supabase) return NextResponse.json({ error: 'Supabase not configured' }, { status: 503 })
+
+  const idsParam = req.nextUrl.searchParams.get('ids')
+  if (idsParam) {
+    const idList = idsParam.split(',').filter(Boolean)
+    const { data, error } = await supabase
+      .from('casual_games')
+      .select('*')
+      .in('id', idList)
+      .order('played_at', { ascending: false })
+      .order('created_at', { ascending: false })
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(data ?? [])
+  }
 
   const { data, error } = await supabase
     .from('casual_games')

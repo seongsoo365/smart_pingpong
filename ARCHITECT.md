@@ -31,7 +31,7 @@ smart_pingpong/
 │   │   ├── layout.tsx
 │   │   ├── page.tsx                    # 홈
 │   │   ├── players/page.tsx            # 선수 전적 조회 (이름 검색 → 즉시 합산 전적 표시)
-│   │   ├── games/new/page.tsx          # 일회성 게임 기록 등록 (로그인 불필요, 약식/세트별 모드)
+│   │   ├── games/new/page.tsx          # 일회성 게임 기록 등록 (로그인 불필요, 약식/세트별 모드, 내가 등록한 기록 localStorage 조회)
 │   │   └── tournaments/
 │   │       ├── page.tsx                # 대회 목록 (연도 필터: 2026년 시작, 현재 연도까지)
 │   │       └── [id]/
@@ -61,7 +61,7 @@ smart_pingpong/
 │   │   │   └── [id]/route.ts           # 부수 수정/삭제
 │   │   ├── tournaments/[id]/route.ts   # 대회 수정/삭제
 │   │   ├── games/
-│   │   │   ├── route.ts                # 일회성 게임 GET(목록) / POST(등록, 비인증 허용)
+│   │   │   ├── route.ts                # 일회성 게임 GET(목록, ?ids=로 특정 ID 필터) / POST(등록, 비인증 허용)
 │   │   │   └── [id]/route.ts           # 일회성 게임 PUT(수정) / DELETE(삭제, 소유자·admin)
 │   │   ├── players/
 │   │   │   ├── records/route.ts        # 선수 전적 조회 (대회 + 일회성 게임 합산, ?ids=&name=&club=)
@@ -86,7 +86,8 @@ smart_pingpong/
 │   │   ├── GroupMatrix.tsx             # 예선 전적 매트릭스
 │   │   ├── StandingsTable.tsx          # 조별 순위표
 │   │   ├── DivisionRealtimeContent.tsx # 부수 상세 실시간 구독 클라이언트 컴포넌트
-│   │   └── QnaSection.tsx              # 공개 Q&A 섹션
+│   │   ├── QnaSection.tsx              # 공개 Q&A 섹션
+│   │   └── MyGameHistory.tsx           # 내가 등록한 일회성 게임 기록 목록 (localStorage 기반)
 │   └── ui/                             # shadcn 기본 컴포넌트
 │       ├── button, card, badge, tabs, dialog, select
 │       ├── input, label, textarea, separator
@@ -101,7 +102,8 @@ smart_pingpong/
 │   └── utils/
 │       ├── bracket.ts                  # 시드 브라켓 생성 (generateSeededBracket, getBracketRounds)
 │       ├── roundrobin.ts               # 원형법 리그 일정 (distributeIntoGroups)
-│       └── standings.ts                # 순위 계산 + 동률 감지 (hasTieAtBoundary, getTieGroups)
+│       ├── standings.ts                # 순위 계산 + 동률 감지 (hasTieAtBoundary, getTieGroups)
+│       └── myGames.ts                  # 내 일회성 게임 ID localStorage 관리 (addMyGame, getMyGameIds, removeMyGame)
 ├── supabase/migrations/                # 순서대로 실행해야 하는 DB 마이그레이션
 │   ├── 001_initial_schema.sql          # 기본 테이블 + RLS + 트리거
 │   ├── 002_fix_rls_recursion.sql       # get_my_role() SECURITY DEFINER 함수
@@ -255,6 +257,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 | `lib/utils/bracket.ts` | `generateSeededBracket(ids)` → `[p1\|null, p2\|null][]`, `getBracketRounds(n)`, `nextPowerOfTwo(n)` |
 | `lib/utils/roundrobin.ts` | `distributeIntoGroups(players, n)` 뱀 시드 방식 |
 | `lib/utils/standings.ts` | 승수→세트 득실→점수 득실 순위, `hasTieAtBoundary()`, `getTieGroups()` |
+| `lib/utils/myGames.ts` | 비로그인 사용자의 등록 게임 ID를 localStorage에 보관 (`addMyGame`, `getMyGameIds`, `removeMyGame`) |
 
 ---
 

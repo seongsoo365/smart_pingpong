@@ -5,6 +5,8 @@ import { Plus, Minus, CheckCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import MyGameHistory from '@/components/tournament/MyGameHistory'
+import { addMyGame } from '@/lib/utils/myGames'
 
 type EntryMode = 'simple' | 'detail'
 
@@ -50,6 +52,7 @@ export default function NewGamePage() {
   const [saving, setSaving] = useState(false)
   const [finalScore, setFinalScore] = useState<{ s1: number; s2: number } | null>(null)
   const [error, setError] = useState('')
+  const [refreshKey, setRefreshKey] = useState(0)
 
   function handleModeChange(next: EntryMode) {
     setMode(next)
@@ -77,6 +80,7 @@ export default function NewGamePage() {
     }
 
     let payload: Record<string, unknown>
+    let previewScore: { s1: number; s2: number }
 
     if (mode === 'simple') {
       const s1 = Number(simpleScore1)
@@ -90,7 +94,7 @@ export default function NewGamePage() {
         return
       }
       payload = { ...form, sets: [], score1: s1, score2: s2 }
-      setFinalScore({ s1, s2 })
+      previewScore = { s1, s2 }
     } else {
       const validSets = sets.filter(s => s.score1 > 0 || s.score2 > 0)
       if (validSets.length === 0) {
@@ -99,7 +103,7 @@ export default function NewGamePage() {
       }
       const { score1, score2 } = computeDetailScores(validSets)
       payload = { ...form, sets: validSets }
-      setFinalScore({ s1: score1, s2: score2 })
+      previewScore = { s1: score1, s2: score2 }
     }
 
     setSaving(true)
@@ -113,8 +117,11 @@ export default function NewGamePage() {
         const err = await res.json()
         throw new Error(err.error ?? '등록 실패')
       }
+      const data = await res.json()
+      addMyGame(data.id)
+      setFinalScore(previewScore)
+      setRefreshKey(k => k + 1)
     } catch (e) {
-      setFinalScore(null)
       setError(e instanceof Error ? e.message : '등록 중 오류가 발생했습니다.')
       setSaving(false)
       return
@@ -137,24 +144,27 @@ export default function NewGamePage() {
   if (finalScore) {
     const p1Won = finalScore.s1 > finalScore.s2
     return (
-      <div className="max-w-lg mx-auto px-4 py-16 text-center space-y-6">
-        <CheckCircle className="w-16 h-16 text-primary mx-auto" />
-        <div>
-          <h1 className="text-2xl font-bold">게임이 등록됐습니다!</h1>
-          <p className="text-muted-foreground text-sm mt-2">
-            {form.player1_name} vs {form.player2_name} · {finalScore.s1}:{finalScore.s2}
-            {' '}({p1Won ? form.player1_name : form.player2_name} 승)
-          </p>
+      <div className="max-w-lg mx-auto px-4 py-12 space-y-8">
+        <div className="text-center space-y-6">
+          <CheckCircle className="w-16 h-16 text-primary mx-auto" />
+          <div>
+            <h1 className="text-2xl font-bold">게임이 등록됐습니다!</h1>
+            <p className="text-muted-foreground text-sm mt-2">
+              {form.player1_name} vs {form.player2_name} · {finalScore.s1}:{finalScore.s2}
+              {' '}({p1Won ? form.player1_name : form.player2_name} 승)
+            </p>
+          </div>
+          <div className="flex gap-3 justify-center">
+            <Button onClick={handleReset} variant="outline">한 게임 더 등록</Button>
+            <a
+              href="/players"
+              className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              전적 조회
+            </a>
+          </div>
         </div>
-        <div className="flex gap-3 justify-center">
-          <Button onClick={handleReset} variant="outline">한 게임 더 등록</Button>
-          <a
-            href="/players"
-            className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
-          >
-            전적 조회
-          </a>
-        </div>
+        <MyGameHistory refreshKey={refreshKey} />
       </div>
     )
   }
@@ -423,6 +433,8 @@ export default function NewGamePage() {
       <Button onClick={handleSubmit} disabled={saving} className="w-full" size="lg">
         {saving ? '등록 중...' : '게임 등록'}
       </Button>
+
+      <MyGameHistory refreshKey={refreshKey} />
     </div>
   )
 }
