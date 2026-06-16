@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import StandingsTable from '@/components/tournament/StandingsTable'
 import BracketView from '@/components/tournament/BracketView'
 import GroupMatrix from '@/components/tournament/GroupMatrix'
+import MatchSchedule from '@/components/tournament/MatchSchedule'
 import { createClient } from '@/lib/supabase/client'
 import { calculateStandings } from '@/lib/utils/standings'
 import { cn } from '@/lib/utils'
@@ -253,10 +255,28 @@ export default function DivisionRealtimeContent({
 
             const orderedParticipants = rows.map(r => ({ id: r.participant_id, name: r.name, club: r.club }))
 
+            const sortedGroupMatches = [...groupMatches].sort(
+              (a, b) => a.round - b.round || a.match_number - b.match_number
+            )
+
             return (
               <div key={group.id} className="space-y-3">
                 <h3 className="font-bold">{group.name}</h3>
                 <StandingsTable rows={rows} advanceCount={prelim?.advancement_count ?? 2} isTeam={!isIndividual} />
+                <details className="group/schedule">
+                  <summary className="flex items-center justify-between px-1 py-1 cursor-pointer list-none select-none">
+                    <p className="text-xs text-muted-foreground font-medium">경기 순서</p>
+                    <ChevronDown className="w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 group-open/schedule:rotate-180" />
+                  </summary>
+                  <div className="mt-1">
+                    <MatchSchedule
+                      matches={sortedGroupMatches}
+                      getName={getName}
+                      getClub={getClub}
+                      isTeam={!isIndividual}
+                    />
+                  </div>
+                </details>
                 {groupMatches.some(m => m.status === 'completed') && (
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground font-medium px-1">상대 전적</p>
