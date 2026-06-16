@@ -30,7 +30,8 @@ smart_pingpong/
 │   ├── (public)/                       # 비인증 공개 페이지 (서버 컴포넌트)
 │   │   ├── layout.tsx
 │   │   ├── page.tsx                    # 홈
-│   │   ├── players/page.tsx            # 선수 전적 조회
+│   │   ├── players/page.tsx            # 선수 전적 조회 (이름 검색 → 즉시 합산 전적 표시)
+│   │   ├── games/new/page.tsx          # 일회성 게임 기록 등록 (로그인 불필요, 약식/세트별 모드)
 │   │   └── tournaments/
 │   │       ├── page.tsx                # 대회 목록 (연도 필터: 2026년 시작, 현재 연도까지)
 │   │       └── [id]/
@@ -59,9 +60,12 @@ smart_pingpong/
 │   │   │   ├── route.ts                # 부수 생성
 │   │   │   └── [id]/route.ts           # 부수 수정/삭제
 │   │   ├── tournaments/[id]/route.ts   # 대회 수정/삭제
+│   │   ├── games/
+│   │   │   ├── route.ts                # 일회성 게임 GET(목록) / POST(등록, 비인증 허용)
+│   │   │   └── [id]/route.ts           # 일회성 게임 PUT(수정) / DELETE(삭제, 소유자·admin)
 │   │   ├── players/
-│   │   │   ├── records/route.ts        # 선수 전적 조회
-│   │   │   └── search/route.ts         # 선수 검색
+│   │   │   ├── records/route.ts        # 선수 전적 조회 (대회 + 일회성 게임 합산, ?ids=&name=&club=)
+│   │   │   └── search/route.ts         # 선수 검색 (players 테이블 + casual_games 이름 통합)
 │   │   └── notify/route.ts             # 승인/거절 이메일 알림 (Resend)
 │   └── auth/
 │       ├── callback/route.ts           # OAuth 코드 교환 (Google)
@@ -69,9 +73,9 @@ smart_pingpong/
 │       └── naver/route.ts              # 네이버 OAuth 시작점
 ├── components/
 │   ├── layout/
-│   │   ├── Header.tsx                  # 공개 페이지 헤더 (홈·대회 목록·전적 조회)
-│   │   ├── AdminSidebar.tsx            # 관리자 데스크톱 사이드바
-│   │   ├── MobileBottomNav.tsx         # 모바일 하단 네비 (홈·대회·전적·관리)
+│   │   ├── Header.tsx                  # 공개 페이지 헤더 (홈·대회 목록·게임 기록 등록·전적 조회)
+│   │   ├── AdminSidebar.tsx            # 관리자 데스크톱 사이드바 (대시보드·대회 등록·일회성 게임·사용자 관리)
+│   │   ├── MobileBottomNav.tsx         # 모바일 하단 네비 (홈·대회·게임·전적·관리)
 │   │   ├── SetupBanner.tsx             # Supabase 미설정 시 안내 배너
 │   │   └── ThemeToggle.tsx             # 다크/라이트 모드 토글 버튼
 │   ├── providers/
@@ -109,7 +113,9 @@ smart_pingpong/
 │   ├── 009_email_notify.sql            # players/teams.email 컬럼
 │   ├── 010_qna.sql                     # tournament_questions 테이블
 │   ├── 011_social_auth.sql             # user_profiles.provider, avatar_url
-│   └── 012_tournament_regulations.sql  # tournaments.regulations 컬럼
+│   ├── 012_tournament_regulations.sql  # tournaments.regulations 컬럼
+│   ├── 016_casual_games.sql            # casual_games 테이블 + RLS (인증 필요 쓰기)
+│   └── 017_casual_games_public.sql     # casual_games INSERT RLS 공개 허용 (비인증 등록)
 ├── proxy.ts                            # Next.js 16 middleware 대체 (세션 쿠키 갱신)
 └── CLAUDE.md / AGENTS.md / ARCHITECT.md / roadmap.md
 ```
@@ -133,6 +139,13 @@ tournament
             │    └─ player/team (group_id로 배정)
             └─ match (1:N, round + match_number)
                   └─ match_set (세트별 점수)
+
+casual_games (일회성 게임 — 대회 구조 독립)
+  id, player1_name, player2_name, player1_club, player2_club,
+  score1(세트 승수), score2(세트 승수), sets(JSONB [{score1,score2},...]),
+  games_per_match, points_per_game, played_at, venue, notes,
+  created_by(auth.users 참조, nullable), created_at
+  RLS: 전체 공개 SELECT / INSERT 비인증 허용 / UPDATE·DELETE는 소유자·system_admin
 ```
 
 ### 주요 타입 (lib/types/index.ts)
@@ -291,6 +304,7 @@ RESEND_API_KEY                  # (선택) 이메일 알림, 없으면 silent sk
 ## 마이그레이션 실행 순서
 
 Supabase SQL Editor에서 번호 순서대로 실행:
-`001 → 002 → 003 → 004 → 005 → 006 → 008 → 009 → 010 → 011 → 012`
+`001 → 002 → 003 → 004 → 005 → 006 → 008 → 009 → 010 → 011 → 012 → 016 → 017`
 
-> 007은 결번 (team_member_level은 009에 통합됨)
+> 007은 결번 (team_member_level은 009에 통합됨)  
+> 013·014·015는 소셜 로그인/비밀번호 관련 마이그레이션 (별도 실행됨)

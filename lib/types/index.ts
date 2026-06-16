@@ -178,6 +178,24 @@ export interface TournamentQuestion {
   created_at: string
 }
 
+export interface CasualGame {
+  id: string
+  player1_name: string
+  player2_name: string
+  player1_club?: string | null
+  player2_club?: string | null
+  score1: number
+  score2: number
+  sets: { score1: number; score2: number }[]
+  games_per_match: number
+  points_per_game: number
+  played_at: string
+  venue?: string | null
+  notes?: string | null
+  created_by?: string | null
+  created_at: string
+}
+
 export interface TournamentWithDivisions extends Tournament {
   divisions: (Division & {
     phases: TournamentPhase[]

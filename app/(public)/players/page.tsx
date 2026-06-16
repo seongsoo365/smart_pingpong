@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { Search, ChevronLeft, ChevronRight, Users, User } from 'lucide-react'
+import { Search, ChevronRight, Users, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface GroupedPlayer {
@@ -9,6 +9,7 @@ interface GroupedPlayer {
   club: string | null
   player_ids: string[]
   registrations: { tournament_name: string; division_name: string }[]
+  has_casual_games: boolean
 }
 
 interface MatchRecord {
@@ -45,7 +46,8 @@ interface PlayerRecords {
   matches: MatchRecord[]
 }
 
-function formatPhaseRound(phaseType: string, round: number) {
+function formatPhaseRound(phaseType: string, round: number, divisionName: string) {
+  if (phaseType === 'casual') return divisionName || '일회성 게임'
   return phaseType === 'preliminary' ? `예선 ${round}R` : `본선 ${round}R`
 }
 
@@ -62,6 +64,26 @@ export default function PlayersPage() {
   const [expandedH2H, setExpandedH2H] = useState<string | null>(null)
   const [error, setError] = useState('')
 
+  const loadRecords = useCallback(async (playerIds: string[], name: string, club: string | null) => {
+    setLoadingRecords(true)
+    setError('')
+    setExpandedH2H(null)
+    try {
+      const params = new URLSearchParams()
+      if (playerIds.length > 0) params.set('ids', playerIds.join(','))
+      if (name) params.set('name', name)
+      if (club) params.set('club', club)
+      const res = await fetch(`/api/players/records?${params.toString()}`)
+      if (!res.ok) throw new Error()
+      const data: PlayerRecords = await res.json()
+      setRecords(data)
+    } catch {
+      setError('전적 조회 중 오류가 발생했습니다.')
+    } finally {
+      setLoadingRecords(false)
+    }
+  }, [])
+
   const handleSearch = useCallback(async () => {
     const trimmed = query.trim()
     if (!trimmed) return
@@ -75,31 +97,17 @@ export default function PlayersPage() {
       if (!res.ok) throw new Error()
       const data: GroupedPlayer[] = await res.json()
       setSearchResults(data)
-      if (data.length === 1) {
-        await loadRecords(data[0].player_ids)
+      if (data.length > 0) {
+        // 소속에 관계없이 같은 이름의 모든 전적을 합산해서 바로 표시
+        const allIds = data.flatMap(p => p.player_ids)
+        await loadRecords(allIds, trimmed, null)
       }
     } catch {
       setError('검색 중 오류가 발생했습니다.')
     } finally {
       setSearching(false)
     }
-  }, [query])
-
-  const loadRecords = useCallback(async (playerIds: string[]) => {
-    setLoadingRecords(true)
-    setError('')
-    setExpandedH2H(null)
-    try {
-      const res = await fetch(`/api/players/records?ids=${playerIds.join(',')}`)
-      if (!res.ok) throw new Error()
-      const data: PlayerRecords = await res.json()
-      setRecords(data)
-    } catch {
-      setError('전적 조회 중 오류가 발생했습니다.')
-    } finally {
-      setLoadingRecords(false)
-    }
-  }, [])
+  }, [query, loadRecords])
 
   const totalGames = records ? records.total_wins + records.total_losses : 0
   const winRate = records && totalGames > 0 ? Math.round((records.total_wins / totalGames) * 100) : 0
@@ -137,16 +145,7 @@ export default function PlayersPage() {
       {/* Player Records */}
       {!loading && records && (
         <div className="space-y-4">
-          {searchResults && searchResults.length > 1 && (
-            <button
-              onClick={() => setRecords(null)}
-              className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              검색 결과로
-            </button>
-          )}
-
+    
           {/* Player Info */}
           <div className="glass rounded-xl p-5 flex items-center gap-4">
             <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
@@ -216,9 +215,13 @@ export default function PlayersPage() {
                               </span>
                               <span className="font-mono text-white/70">{m.my_score}:{m.opp_score}</span>
                               <span className="text-white/30">·</span>
-                              <span>{formatPhaseRound(m.phase_type, m.round)}</span>
-                              <span className="text-white/30">·</span>
-                              <span className="truncate">{m.tournament_name} / {m.division_name}</span>
+                              <span>{formatPhaseRound(m.phase_type, m.round, m.division_name)}</span>
+                              {m.phase_type !== 'casual' && (
+                                <>
+                                  <span className="text-white/30">·</span>
+                                  <span className="truncate">{m.tournament_name} / {m.division_name}</span>
+                                </>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -257,7 +260,15 @@ export default function PlayersPage() {
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                        {m.tournament_name} · {m.division_name} · {formatPhaseRound(m.phase_type, m.round)}
+                        {m.phase_type === 'casual' ? (
+                          <>
+                            <span className="text-accent font-medium">일회성 게임</span>
+                            {m.division_name && ` · ${m.division_name}`}
+                            {m.tournament_start && ` · ${m.tournament_start}`}
+                          </>
+                        ) : (
+                          `${m.tournament_name} · ${m.division_name} · ${formatPhaseRound(m.phase_type, m.round, m.division_name)}`
+                        )}
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
@@ -274,44 +285,12 @@ export default function PlayersPage() {
         </div>
       )}
 
-      {/* Search Results (disambiguation) */}
-      {!loading && !records && searchResults && (
-        <div>
-          {searchResults.length === 0 ? (
-            <div className="glass rounded-xl p-10 text-center">
-              <p className="text-sm text-muted-foreground">
-                <span className="font-medium text-foreground">"{query}"</span> 이름의 선수를 찾을 수 없습니다.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground mb-3">
-                {searchResults.length}명의 선수를 찾았습니다. 선수를 선택하세요.
-              </p>
-              {searchResults.map((p, i) => (
-                <button
-                  key={i}
-                  onClick={() => loadRecords(p.player_ids)}
-                  className="w-full glass rounded-xl p-4 flex items-center gap-3 hover:bg-white/10 transition-colors text-left"
-                >
-                  <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                    <User className="w-5 h-5 text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{p.name}</span>
-                      {p.club && <span className="text-sm text-muted-foreground">{p.club}</span>}
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                      {p.registrations.slice(0, 2).map(r => r.tournament_name).join(' · ')}
-                      {p.registrations.length > 2 && ` 외 ${p.registrations.length - 2}개`}
-                    </p>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-                </button>
-              ))}
-            </div>
-          )}
+      {/* 검색 결과 없음 */}
+      {!loading && !records && searchResults && searchResults.length === 0 && (
+        <div className="glass rounded-xl p-10 text-center">
+          <p className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">"{query}"</span> 이름의 선수를 찾을 수 없습니다.
+          </p>
         </div>
       )}
 
