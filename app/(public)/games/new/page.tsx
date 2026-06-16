@@ -164,7 +164,7 @@ export default function NewGamePage() {
       <div>
         <h1 className="text-2xl font-bold">게임 기록 등록</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          1:1 단식 경기 결과를 기록합니다. 로그인 없이 등록할 수 있습니다.
+          1:1 단식 경기 결과를 기록합니다. 로그인 없이 등록할 수 있습니다. 대회 결과는 관리자 메뉴에서.
         </p>
       </div>
 
