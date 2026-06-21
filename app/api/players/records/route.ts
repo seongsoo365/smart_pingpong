@@ -5,6 +5,8 @@ export async function GET(req: NextRequest) {
   const idsParam = req.nextUrl.searchParams.get('ids') ?? ''
   const nameParam = req.nextUrl.searchParams.get('name')?.trim() ?? ''
   const clubParam = req.nextUrl.searchParams.get('club')?.trim() ?? ''
+  const includeTournament = req.nextUrl.searchParams.get('include_tournament') !== 'false'
+  const includeCasual = req.nextUrl.searchParams.get('include_casual') !== 'false'
 
   const playerIds = idsParam.split(',').filter(id => /^[0-9a-f-]{36}$/.test(id))
   const hasIds = playerIds.length > 0
@@ -38,7 +40,7 @@ export async function GET(req: NextRequest) {
   let playerInfo: { name: string; club?: string } | null = null
 
   // ── 대회 전적 ──
-  if (hasIds) {
+  if (hasIds && includeTournament) {
     const { data: players } = await supabase
       .from('players')
       .select('id, name, club')
@@ -130,7 +132,7 @@ export async function GET(req: NextRequest) {
   }
 
   // ── 일회성 게임 전적 ──
-  if (hasName) {
+  if (hasName && includeCasual) {
     if (!playerInfo) {
       playerInfo = { name: nameParam, club: clubParam || undefined }
     }
@@ -179,6 +181,11 @@ export async function GET(req: NextRequest) {
         sets,
       })
     }
+  }
+
+  // casual 블록이 스킵됐을 때도 name 파라미터로 playerInfo 구성
+  if (!playerInfo && hasName) {
+    playerInfo = { name: nameParam, club: clubParam || undefined }
   }
 
   if (!playerInfo) {

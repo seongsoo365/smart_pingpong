@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useCallback } from 'react'
-import { Search, ChevronRight, Users, User } from 'lucide-react'
+import { useState, useCallback, useEffect } from 'react'
+import { Search, ChevronRight, Users, User, Trophy, Gamepad2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { createClient } from '@/lib/supabase/client'
 
 interface GroupedPlayer {
   name: string
@@ -63,16 +64,28 @@ export default function PlayersPage() {
   const [records, setRecords] = useState<PlayerRecords | null>(null)
   const [expandedH2H, setExpandedH2H] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [includeTournament, setIncludeTournament] = useState(true)
+  const [includeCasual, setIncludeCasual] = useState(true)
+  const [lastSearchState, setLastSearchState] = useState<{ playerIds: string[]; name: string; club: string | null } | null>(null)
 
-  const loadRecords = useCallback(async (playerIds: string[], name: string, club: string | null) => {
+  const loadRecords = useCallback(async (
+    playerIds: string[],
+    name: string,
+    club: string | null,
+    opts?: { tournament?: boolean; casual?: boolean }
+  ) => {
     setLoadingRecords(true)
     setError('')
     setExpandedH2H(null)
+    const useTournament = opts?.tournament ?? includeTournament
+    const useCasual = opts?.casual ?? includeCasual
     try {
       const params = new URLSearchParams()
       if (playerIds.length > 0) params.set('ids', playerIds.join(','))
       if (name) params.set('name', name)
       if (club) params.set('club', club)
+      if (!useTournament) params.set('include_tournament', 'false')
+      if (!useCasual) params.set('include_casual', 'false')
       const res = await fetch(`/api/players/records?${params.toString()}`)
       if (!res.ok) throw new Error()
       const data: PlayerRecords = await res.json()
@@ -82,7 +95,7 @@ export default function PlayersPage() {
     } finally {
       setLoadingRecords(false)
     }
-  }, [])
+  }, [includeTournament, includeCasual])
 
   const handleSearch = useCallback(async () => {
     const trimmed = query.trim()
@@ -98,8 +111,8 @@ export default function PlayersPage() {
       const data: GroupedPlayer[] = await res.json()
       setSearchResults(data)
       if (data.length > 0) {
-        // 소속에 관계없이 같은 이름의 모든 전적을 합산해서 바로 표시
         const allIds = data.flatMap(p => p.player_ids)
+        setLastSearchState({ playerIds: allIds, name: trimmed, club: null })
         await loadRecords(allIds, trimmed, null)
       }
     } catch {
@@ -108,6 +121,55 @@ export default function PlayersPage() {
       setSearching(false)
     }
   }, [query, loadRecords])
+
+  const handleToggleTournament = useCallback(() => {
+    const next = !includeTournament
+    setIncludeTournament(next)
+    if (lastSearchState) {
+      loadRecords(lastSearchState.playerIds, lastSearchState.name, lastSearchState.club, { tournament: next, casual: includeCasual })
+    }
+  }, [includeTournament, includeCasual, lastSearchState, loadRecords])
+
+  const handleToggleCasual = useCallback(() => {
+    const next = !includeCasual
+    setIncludeCasual(next)
+    if (lastSearchState) {
+      loadRecords(lastSearchState.playerIds, lastSearchState.name, lastSearchState.club, { tournament: includeTournament, casual: next })
+    }
+  }, [includeTournament, includeCasual, lastSearchState, loadRecords])
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('name')
+        .eq('id', user.id)
+        .single()
+      if (!profile?.name) return
+      const name = profile.name
+      setQuery(name)
+      setSearching(true)
+      setError('')
+      try {
+        const res = await fetch(`/api/players/search?name=${encodeURIComponent(name)}`)
+        if (!res.ok) throw new Error()
+        const data: GroupedPlayer[] = await res.json()
+        setSearchResults(data)
+        if (data.length > 0) {
+          const allIds = data.flatMap(p => p.player_ids)
+          setLastSearchState({ playerIds: allIds, name, club: null })
+          await loadRecords(allIds, name, null)
+        }
+      } catch {
+        // 자동 조회 실패는 무시
+      } finally {
+        setSearching(false)
+      }
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const totalGames = records ? records.total_wins + records.total_losses : 0
   const winRate = records && totalGames > 0 ? Math.round((records.total_wins / totalGames) * 100) : 0
@@ -134,6 +196,33 @@ export default function PlayersPage() {
         <Button onClick={handleSearch} disabled={loading || !query.trim()}>
           {searching ? '검색 중...' : '검색'}
         </Button>
+      </div>
+
+      {/* Filter Toggles */}
+      <div className="flex items-center gap-2 mb-6">
+        <span className="text-xs text-muted-foreground mr-1">포함:</span>
+        <button
+          onClick={handleToggleTournament}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
+            includeTournament
+              ? 'bg-primary/20 border-primary/50 text-primary'
+              : 'bg-transparent border-white/10 text-muted-foreground'
+          }`}
+        >
+          <Trophy className="w-3 h-3" />
+          대회등록
+        </button>
+        <button
+          onClick={handleToggleCasual}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
+            includeCasual
+              ? 'bg-accent/20 border-accent/50 text-accent'
+              : 'bg-transparent border-white/10 text-muted-foreground'
+          }`}
+        >
+          <Gamepad2 className="w-3 h-3" />
+          게임기록
+        </button>
       </div>
 
       {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
