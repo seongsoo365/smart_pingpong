@@ -7,6 +7,11 @@ export async function GET(req: NextRequest) {
   const clubParam = req.nextUrl.searchParams.get('club')?.trim() ?? ''
   const includeTournament = req.nextUrl.searchParams.get('include_tournament') !== 'false'
   const includeCasual = req.nextUrl.searchParams.get('include_casual') !== 'false'
+  const casualGameIdsParam = req.nextUrl.searchParams.get('casual_game_ids')
+  const hasCasualGameFilter = casualGameIdsParam !== null
+  const casualGameIds = casualGameIdsParam
+    ? casualGameIdsParam.split(',').filter(id => /^[0-9a-f-]{36}$/.test(id))
+    : []
 
   const playerIds = idsParam.split(',').filter(id => /^[0-9a-f-]{36}$/.test(id))
   const hasIds = playerIds.length > 0
@@ -137,10 +142,17 @@ export async function GET(req: NextRequest) {
       playerInfo = { name: nameParam, club: clubParam || undefined }
     }
 
-    const { data: casualGames, error: casualError } = await supabase
-      .from('casual_games')
-      .select('*')
-      .or(`player1_name.eq.${nameParam},player2_name.eq.${nameParam}`)
+    // 내가 등록한 게임만 보기: IDs가 없으면 결과 없음
+    if (hasCasualGameFilter && casualGameIds.length === 0) {
+      // skip — 등록된 게임 없음
+    } else {
+    let casualQuery = supabase.from('casual_games').select('*')
+    if (hasCasualGameFilter) {
+      casualQuery = casualQuery.in('id', casualGameIds)
+    } else {
+      casualQuery = casualQuery.or(`player1_name.eq.${nameParam},player2_name.eq.${nameParam}`)
+    }
+    const { data: casualGames, error: casualError } = await casualQuery
       .order('played_at', { ascending: false })
 
     if (casualError) return NextResponse.json({ error: casualError.message }, { status: 500 })
@@ -181,6 +193,7 @@ export async function GET(req: NextRequest) {
         sets,
       })
     }
+    } // end else (hasCasualGameFilter)
   }
 
   // casual 블록이 스킵됐을 때도 name 파라미터로 playerInfo 구성

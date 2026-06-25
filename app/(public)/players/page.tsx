@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { Search, ChevronRight, Users, User, Trophy, Gamepad2 } from 'lucide-react'
+import { Search, ChevronRight, Users, User, Trophy, Gamepad2, CheckSquare, Square } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
+import { getMyGameIds } from '@/lib/utils/myGames'
 
 interface GroupedPlayer {
   name: string
@@ -66,19 +67,21 @@ export default function PlayersPage() {
   const [error, setError] = useState('')
   const [includeTournament, setIncludeTournament] = useState(true)
   const [includeCasual, setIncludeCasual] = useState(true)
+  const [onlyMyGames, setOnlyMyGames] = useState(false)
   const [lastSearchState, setLastSearchState] = useState<{ playerIds: string[]; name: string; club: string | null } | null>(null)
 
   const loadRecords = useCallback(async (
     playerIds: string[],
     name: string,
     club: string | null,
-    opts?: { tournament?: boolean; casual?: boolean }
+    opts?: { tournament?: boolean; casual?: boolean; myGameIds?: string[] }
   ) => {
     setLoadingRecords(true)
     setError('')
     setExpandedH2H(null)
     const useTournament = opts?.tournament ?? includeTournament
     const useCasual = opts?.casual ?? includeCasual
+    const myGameIds = opts?.myGameIds
     try {
       const params = new URLSearchParams()
       if (playerIds.length > 0) params.set('ids', playerIds.join(','))
@@ -86,6 +89,7 @@ export default function PlayersPage() {
       if (club) params.set('club', club)
       if (!useTournament) params.set('include_tournament', 'false')
       if (!useCasual) params.set('include_casual', 'false')
+      if (myGameIds !== undefined) params.set('casual_game_ids', myGameIds.join(','))
       const res = await fetch(`/api/players/records?${params.toString()}`)
       if (!res.ok) throw new Error()
       const data: PlayerRecords = await res.json()
@@ -113,14 +117,18 @@ export default function PlayersPage() {
       if (data.length > 0) {
         const allIds = data.flatMap(p => p.player_ids)
         setLastSearchState({ playerIds: allIds, name: trimmed, club: null })
-        await loadRecords(allIds, trimmed, null)
+        if (onlyMyGames) {
+          await loadRecords(allIds, trimmed, null, { tournament: false, casual: true, myGameIds: getMyGameIds() })
+        } else {
+          await loadRecords(allIds, trimmed, null)
+        }
       }
     } catch {
       setError('검색 중 오류가 발생했습니다.')
     } finally {
       setSearching(false)
     }
-  }, [query, loadRecords])
+  }, [query, loadRecords, onlyMyGames])
 
   const handleToggleTournament = useCallback(() => {
     const next = !includeTournament
@@ -137,6 +145,25 @@ export default function PlayersPage() {
       loadRecords(lastSearchState.playerIds, lastSearchState.name, lastSearchState.club, { tournament: includeTournament, casual: next })
     }
   }, [includeTournament, includeCasual, lastSearchState, loadRecords])
+
+  const handleToggleOnlyMyGames = useCallback(() => {
+    const next = !onlyMyGames
+    setOnlyMyGames(next)
+    if (lastSearchState) {
+      if (next) {
+        loadRecords(lastSearchState.playerIds, lastSearchState.name, lastSearchState.club, {
+          tournament: false,
+          casual: true,
+          myGameIds: getMyGameIds(),
+        })
+      } else {
+        loadRecords(lastSearchState.playerIds, lastSearchState.name, lastSearchState.club, {
+          tournament: includeTournament,
+          casual: includeCasual,
+        })
+      }
+    }
+  }, [onlyMyGames, lastSearchState, includeTournament, includeCasual, loadRecords])
 
   useEffect(() => {
     const supabase = createClient()
@@ -178,7 +205,23 @@ export default function PlayersPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold mb-1">전적 조회</h1>
-      <p className="text-muted-foreground text-sm mb-6">선수명을 검색하여 상대별 전적을 확인하세요.</p>
+      <p className="text-muted-foreground text-sm mb-4">선수명을 검색하여 상대별 전적을 확인하세요.</p>
+
+      {/* 내가 등록한 게임만 */}
+      <button
+        onClick={handleToggleOnlyMyGames}
+        className={`flex items-center gap-2 text-sm mb-4 transition-colors ${
+          onlyMyGames
+            ? 'text-accent font-medium'
+            : 'text-muted-foreground hover:text-foreground'
+        }`}
+      >
+        {onlyMyGames
+          ? <CheckSquare className="w-4 h-4" />
+          : <Square className="w-4 h-4" />
+        }
+        내가 등록한 게임만
+      </button>
 
       {/* Search */}
       <div className="flex gap-2 mb-6">
@@ -199,7 +242,7 @@ export default function PlayersPage() {
       </div>
 
       {/* Filter Toggles */}
-      <div className="flex items-center gap-2 mb-6">
+      <div className={`flex items-center gap-2 mb-6 transition-opacity ${onlyMyGames ? 'opacity-30 pointer-events-none' : ''}`}>
         <span className="text-xs text-muted-foreground mr-1">포함:</span>
         <button
           onClick={handleToggleTournament}
