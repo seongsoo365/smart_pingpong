@@ -25,20 +25,29 @@ const PHASE_FORMAT_LABEL: Record<string, string> = {
   single_elimination: '단일 토너먼트',
 }
 
+const TEAM_FORMAT_SHORT: Record<string, string> = {
+  olympic: '올림픽',
+  traditional_4s1d: '4단1복',
+  swaythling: '스웨이틀링',
+  singles_2_doubles_1: '2단1복',
+  three_doubles: '3복식',
+  three_singles: '3단식',
+}
+
 interface DivisionForm { name: string; gender: Gender; match_type: MatchType; team_match_format: TeamMatchFormat | ''; max_teams: number | '' }
 type NewDivisionForm = DivisionForm
 const defaultNewDiv = (): DivisionForm => ({ name: '', gender: 'male', match_type: 'individual', team_match_format: '', max_teams: '' })
 
 interface PhaseEdit {
   hasPrelim: boolean
-  prelim: { format: PhaseFormat; games_per_match: number; points_per_game: number; advancement_count: number }
-  main: { format: PhaseFormat; games_per_match: number; points_per_game: number }
+  prelim: { format: PhaseFormat; games_per_match: number; points_per_game: number; advancement_count: number; team_match_format: TeamMatchFormat | '' }
+  main: { format: PhaseFormat; games_per_match: number; points_per_game: number; team_match_format: TeamMatchFormat | '' }
 }
 function defaultPhaseEdit(): PhaseEdit {
   return {
     hasPrelim: false,
-    prelim: { format: 'round_robin', games_per_match: 5, points_per_game: 11, advancement_count: 2 },
-    main: { format: 'single_elimination', games_per_match: 5, points_per_game: 11 },
+    prelim: { format: 'round_robin', games_per_match: 5, points_per_game: 11, advancement_count: 2, team_match_format: '' },
+    main: { format: 'single_elimination', games_per_match: 5, points_per_game: 11, team_match_format: '' },
   }
 }
 
@@ -208,11 +217,13 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
         games_per_match: prelim?.games_per_match ?? 5,
         points_per_game: prelim?.points_per_game ?? 11,
         advancement_count: prelim?.advancement_count ?? 2,
+        team_match_format: (prelim?.team_match_format ?? '') as TeamMatchFormat | '',
       },
       main: {
         format: (main?.format ?? 'single_elimination') as PhaseFormat,
         games_per_match: main?.games_per_match ?? 5,
         points_per_game: main?.points_per_game ?? 11,
+        team_match_format: (main?.team_match_format ?? '') as TeamMatchFormat | '',
       },
     })
     setEditingPhaseDivId(divId)
@@ -232,6 +243,7 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
         games_per_match: phaseEdit.prelim.games_per_match,
         points_per_game: phaseEdit.prelim.points_per_game,
         advancement_count: phaseEdit.prelim.advancement_count,
+        team_match_format: phaseEdit.prelim.team_match_format || null,
       }
       if (existingPrelim) {
         const { data } = await supabase.from('tournament_phases').update(payload).eq('id', existingPrelim.id).select().single()
@@ -251,6 +263,7 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
       format: phaseEdit.main.format,
       games_per_match: phaseEdit.main.games_per_match,
       points_per_game: phaseEdit.main.points_per_game,
+      team_match_format: phaseEdit.main.team_match_format || null,
     }
     if (existingMain) {
       const { data } = await supabase.from('tournament_phases').update(mainPayload).eq('id', existingMain.id).select().single()
@@ -276,7 +289,8 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
       const fmtLabel = PHASE_FORMAT_LABEL[ph.format] ?? ph.format
       const typeLabel = ph.phase_type === 'preliminary' ? '예선' : '본선'
       const adv = ph.phase_type === 'preliminary' && ph.advancement_count ? ` · 진출 ${ph.advancement_count}팀` : ''
-      return `${typeLabel}: ${fmtLabel} · ${ph.games_per_match}게임/${ph.points_per_game}점${adv}`
+      const teamFmt = ph.team_match_format ? ` · ${TEAM_FORMAT_SHORT[ph.team_match_format] ?? ph.team_match_format}` : ''
+      return `${typeLabel}: ${fmtLabel} · ${ph.games_per_match}게임/${ph.points_per_game}점${teamFmt}${adv}`
     }).join('  |  ')
   }
 
@@ -571,6 +585,20 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
                               onChange={e => setPhaseEdit(p => ({ ...p, prelim: { ...p.prelim, advancement_count: Number(e.target.value) } }))}
                               className="w-full glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary" />
                           </div>
+                          {div.match_type === 'team' && (
+                            <div className="space-y-1 col-span-2 sm:col-span-4">
+                              <label className="text-xs text-muted-foreground">예선 단체전 방식</label>
+                              <select
+                                value={phaseEdit.prelim.team_match_format}
+                                onChange={e => setPhaseEdit(p => ({ ...p, prelim: { ...p.prelim, team_match_format: e.target.value as TeamMatchFormat | '' } }))}
+                                className="w-full glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-background outline-none focus:border-primary">
+                                <option value="">-- 방식 선택 --</option>
+                                {(Object.entries(TEAM_FORMAT_LABEL) as [TeamMatchFormat, string][]).map(([val, label]) => (
+                                  <option key={val} value={val}>{label}</option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -603,6 +631,20 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
                             onChange={e => setPhaseEdit(p => ({ ...p, main: { ...p.main, points_per_game: Number(e.target.value) } }))}
                             className="w-full glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary" />
                         </div>
+                        {div.match_type === 'team' && (
+                          <div className="space-y-1 col-span-2 sm:col-span-3">
+                            <label className="text-xs text-muted-foreground">본선 단체전 방식</label>
+                            <select
+                              value={phaseEdit.main.team_match_format}
+                              onChange={e => setPhaseEdit(p => ({ ...p, main: { ...p.main, team_match_format: e.target.value as TeamMatchFormat | '' } }))}
+                              className="w-full glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-background outline-none focus:border-primary">
+                              <option value="">-- 방식 선택 --</option>
+                              {(Object.entries(TEAM_FORMAT_LABEL) as [TeamMatchFormat, string][]).map(([val, label]) => (
+                                <option key={val} value={val}>{label}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
                       </div>
                     </div>
 

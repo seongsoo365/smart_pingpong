@@ -72,6 +72,7 @@ export interface TournamentPhase {
   games_per_match: number
   points_per_game: number
   advancement_count?: number
+  team_match_format?: TeamMatchFormat
   is_active: boolean
   division?: Division
 }

@@ -318,10 +318,11 @@ export default function ScoresPage() {
 
   function startEditing(match: Match) {
     const div = divisions.find(d => d.id === selectedDivId)
+    const phase = phases.find(p => p.id === match.phase_id)
     const existing = matchSetsMap[match.id] ?? []
 
     if (div?.match_type === 'team') {
-      const fmt = div.team_match_format
+      const fmt = phase?.team_match_format ?? div.team_match_format
       const gameList = fmt ? TEAM_MATCH_GAMES[fmt] : []
       const initSets = gameList.map((_, i) => {
         const s = existing.find(e => e.set_number === i + 1)
@@ -380,7 +381,8 @@ export default function ScoresPage() {
     let winner_id: string | undefined
 
     if (isTeam) {
-      const fmt = div?.team_match_format
+      const phase = phases.find(p => p.id === match.phase_id)
+      const fmt = phase?.team_match_format ?? div?.team_match_format
       const totalGames = fmt ? TEAM_FORMAT_GAMES[fmt] : 3
       const needed = Math.ceil(totalGames / 2)
       finalScore1 = sets.filter(s => s.score1 > s.score2).length
@@ -738,7 +740,8 @@ export default function ScoresPage() {
   function renderTeamMatch(m: Match, div: Division) {
     const t1 = m.participant1_id ? tMap.get(m.participant1_id) : null
     const t2 = m.participant2_id ? tMap.get(m.participant2_id) : null
-    const fmt = div.team_match_format
+    const phase = phases.find(p => p.id === m.phase_id)
+    const fmt = phase?.team_match_format ?? div.team_match_format
     const gameList = fmt ? TEAM_MATCH_GAMES[fmt] : []
     const totalGames = fmt ? TEAM_FORMAT_GAMES[fmt] : 3
     const needed = Math.ceil(totalGames / 2)
