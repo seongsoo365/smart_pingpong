@@ -19,7 +19,7 @@ export default async function AdminDashboard() {
 
   const { data: tournaments } = isSystemAdmin
     ? await supabase.from('tournaments').select('*').order('created_at', { ascending: false }).limit(20)
-    : await supabase.from('tournaments').select('*').eq('admin_id', user.id).order('created_at', { ascending: false }).limit(20)
+    : await supabase.from('tournaments').select('*').or(`admin_id.eq.${user.id},created_by.eq.${user.id}`).order('created_at', { ascending: false }).limit(20)
 
   const counts = {
     draft:       tournaments?.filter(t => t.status === 'draft').length ?? 0,

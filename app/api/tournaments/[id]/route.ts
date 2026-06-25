@@ -75,6 +75,13 @@ export async function PATCH(
     if (key in body) updates[key] = body[key] || null
   }
 
+  // admin_id 위임은 원본 생성자(created_by) 또는 system_admin만 가능
+  if ('admin_id' in body) {
+    const canDelegate = isAdmin || tournament.created_by === user.id
+    if (!canDelegate) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
+    updates.admin_id = body.admin_id
+  }
+
   const { data, error } = await supabase
     .from('tournaments')
     .update(updates)
