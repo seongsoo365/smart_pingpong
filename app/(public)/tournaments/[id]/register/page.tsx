@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft, CheckCircle2, Plus, Minus } from 'lucide-react'
+import { ChevronLeft, CheckCircle2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { Division, Tournament, TeamMatchFormat } from '@/lib/types'
@@ -60,9 +60,7 @@ export default function RegisterPage() {
   // team
   const [teamName, setTeamName] = useState('')
   const [teamClub, setTeamClub] = useState('')
-  const [members, setMembers] = useState<{ name: string; level: number | '' }[]>([
-    { name: '', level: '' }, { name: '', level: '' }, { name: '', level: '' },
-  ])
+  const [members, setMembers] = useState<{ name: string; level: number | '' }[]>([])
 
   useEffect(() => {
     Promise.all([
@@ -109,14 +107,13 @@ export default function RegisterPage() {
       : m))
   }
 
-  function addMember() {
-    if (teamSize && members.length >= teamSize.max) return
-    setMembers(prev => [...prev, { name: '', level: '' }])
-  }
-
-  function removeMember(idx: number) {
-    if (teamSize && members.length <= teamSize.min) return
-    setMembers(prev => prev.filter((_, i) => i !== idx))
+  function handleMemberCountChange(count: number) {
+    setMembers(prev => {
+      if (count > prev.length) {
+        return [...prev, ...Array.from({ length: count - prev.length }, () => ({ name: '', level: '' as const }))]
+      }
+      return prev.slice(0, count)
+    })
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -221,7 +218,6 @@ export default function RegisterPage() {
     setSubmitted(false)
     setName(''); setClub(''); setPhone(''); setPhoneError(null); setEmail('')
     setTeamName(''); setTeamClub('')
-    setMembers([{ name: '', level: '' }, { name: '', level: '' }, { name: '', level: '' }])
     if (selectedDiv) selectDivision(selectedDiv)
   }
 
@@ -330,12 +326,36 @@ export default function RegisterPage() {
                   className="w-full glass border border-white/10 rounded-xl px-4 py-2.5 text-sm bg-transparent outline-none focus:border-primary" />
               </div>
 
+              {teamSize && teamSize.min !== teamSize.max && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">참가 인원 수 *</label>
+                  <div className="flex gap-2">
+                    {Array.from(
+                      { length: teamSize.max - teamSize.min + 1 },
+                      (_, i) => teamSize.min + i
+                    ).map(count => (
+                      <button
+                        key={count}
+                        type="button"
+                        onClick={() => handleMemberCountChange(count)}
+                        className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-colors ${
+                          members.length === count
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'glass border-white/10 hover:border-primary/50'
+                        }`}
+                      >
+                        {count}인
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <label className="text-sm font-medium">
                   선수 명단 *
                   <span className="text-muted-foreground font-normal ml-1 text-xs">
-                    ({members.length}명
-                    {teamSize && teamSize.min !== teamSize.max && ` / 최소 ${teamSize.min}명`})
+                    ({members.length}명)
                   </span>
                 </label>
                 <div className="space-y-2">
@@ -356,21 +376,9 @@ export default function RegisterPage() {
                         className="w-14 text-center glass border border-white/10 rounded-xl px-2 py-2.5 text-sm bg-transparent outline-none focus:border-primary"
                       />
                       <span className="text-xs text-muted-foreground shrink-0">부</span>
-                      {teamSize && members.length > teamSize.min && (
-                        <button type="button" onClick={() => removeMember(i)}
-                          className="p-2 text-muted-foreground hover:text-destructive transition-colors shrink-0">
-                          <Minus className="w-4 h-4" />
-                        </button>
-                      )}
                     </div>
                   ))}
                 </div>
-                {teamSize && members.length < teamSize.max && (
-                  <button type="button" onClick={addMember}
-                    className="w-full py-2 glass border border-dashed border-white/20 rounded-xl text-sm text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors flex items-center justify-center gap-1.5">
-                    <Plus className="w-3.5 h-3.5" /> 선수 추가
-                  </button>
-                )}
               </div>
 
               {phoneField}
