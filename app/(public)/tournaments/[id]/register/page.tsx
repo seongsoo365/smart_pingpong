@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft, CheckCircle2 } from 'lucide-react'
+import { ChevronLeft, CheckCircle2, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { Division, Tournament, TeamMatchFormat } from '@/lib/types'
@@ -222,7 +222,12 @@ export default function RegisterPage() {
   }
 
   if (!tournament) {
-    return <div className="max-w-lg mx-auto px-4 py-16 text-center text-muted-foreground">불러오는 중...</div>
+    return (
+      <div className="max-w-lg mx-auto px-4 py-16 flex flex-col items-center gap-3 text-muted-foreground">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <span className="text-sm">불러오는 중...</span>
+      </div>
+    )
   }
 
   if (submitted) {
@@ -415,7 +420,9 @@ export default function RegisterPage() {
 
           <button type="submit" disabled={loading || !!phoneError}
             className="w-full py-3 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60">
-            {loading ? '접수 중...' : '참가 신청하기'}
+            {loading
+              ? <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />접수 중...</span>
+              : '참가 신청하기'}
           </button>
 
           <p className="text-xs text-muted-foreground text-center leading-relaxed">
