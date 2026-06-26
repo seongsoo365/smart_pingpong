@@ -383,7 +383,7 @@ export default function RegisterPage() {
 
               {phoneField}
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">이메일 <span className="text-muted-foreground font-normal">(선택 — 승인 결과 수신)</span></label>
+                <label className="text-sm font-medium">이메일 <span className="text-muted-foreground font-normal">(선택)</span></label>
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)}
                   placeholder="example@email.com"
                   className="w-full glass border border-white/10 rounded-xl px-4 py-2.5 text-sm bg-transparent outline-none focus:border-primary" />
