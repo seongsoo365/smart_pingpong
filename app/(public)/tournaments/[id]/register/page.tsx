@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ChevronLeft, CheckCircle2, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { addMyRegistration } from '@/lib/utils/myRegistrations'
 import type { Division, Tournament, TeamMatchFormat } from '@/lib/types'
 
 const genderLabel: Record<string, string> = { male: '남자', female: '여자', mixed: '혼합' }
@@ -177,6 +178,7 @@ export default function RegisterPage() {
         setLoading(false)
         return
       }
+      addMyRegistration({ id: team.id, type: 'team', tournament_id: id })
     } else {
       if (!name.trim()) { toast.error('이름을 입력하세요'); setLoading(false); return }
 
@@ -199,15 +201,16 @@ export default function RegisterPage() {
         return
       }
 
-      const { error } = await supabase.from('players').insert({
+      const { data: newPlayer, error } = await supabase.from('players').insert({
         division_id: divisionId,
         name: name.trim(),
         club: club.trim() || null,
         phone: phone.trim() || null,
         email: email.trim() || null,
         confirmed: false,
-      })
-      if (error) { toast.error('접수 실패: ' + error.message); setLoading(false); return }
+      }).select().single()
+      if (error || !newPlayer) { toast.error('접수 실패: ' + error?.message); setLoading(false); return }
+      addMyRegistration({ id: newPlayer.id, type: 'player', tournament_id: id })
     }
 
     setSubmitted(true)

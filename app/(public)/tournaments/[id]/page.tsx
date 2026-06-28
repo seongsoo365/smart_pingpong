@@ -5,6 +5,7 @@ import { createClientSafe } from '@/lib/supabase/server'
 import { cn } from '@/lib/utils'
 import type { Division, Team, TeamMember, TournamentQuestion } from '@/lib/types'
 import QnaSection from '@/components/tournament/QnaSection'
+import MyRegistrationStatus from '@/components/tournament/MyRegistrationStatus'
 
 const genderLabel: Record<string, string> = { male: '남자', female: '여자', mixed: '혼합' }
 const matchTypeLabel: Record<string, string> = { individual: '개인전', team: '단체전' }
@@ -100,6 +101,8 @@ export default async function TournamentDetailPage({
           )}
         </div>
       </div>
+
+      <MyRegistrationStatus tournamentId={id} />
 
       {tournament.regulations && (
         <details open={showRegulations} className="glass rounded-2xl border border-white/10 group">
