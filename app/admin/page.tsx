@@ -17,9 +17,20 @@ export default async function AdminDashboard() {
 
   const isSystemAdmin = profile?.role === 'system_admin'
 
-  const { data: tournaments } = isSystemAdmin
-    ? await supabase.from('tournaments').select('*').order('created_at', { ascending: false }).limit(20)
-    : await supabase.from('tournaments').select('*').or(`admin_id.eq.${user.id},created_by.eq.${user.id}`).order('created_at', { ascending: false }).limit(20)
+  const tournaments = await (async () => {
+    if (isSystemAdmin) {
+      const { data } = await supabase.from('tournaments').select('*').order('created_at', { ascending: false }).limit(20)
+      return data
+    }
+    const { data: coAdminRows } = await supabase
+      .from('tournament_admins').select('tournament_id').eq('user_id', user.id)
+    const coAdminIds = (coAdminRows ?? []).map((r: { tournament_id: string }) => r.tournament_id)
+    const orParts = [`admin_id.eq.${user.id}`, `created_by.eq.${user.id}`]
+    if (coAdminIds.length > 0) orParts.push(`id.in.(${coAdminIds.join(',')})`)
+    const { data } = await supabase
+      .from('tournaments').select('*').or(orParts.join(',')).order('created_at', { ascending: false }).limit(20)
+    return data
+  })()
 
   const counts = {
     draft:       tournaments?.filter(t => t.status === 'draft').length ?? 0,

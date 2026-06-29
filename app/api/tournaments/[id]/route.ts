@@ -19,11 +19,13 @@ export async function DELETE(
 
   if (!tournament) return NextResponse.json({ error: '대회 없음' }, { status: 404 })
 
-  const { data: profile } = await supabase
-    .from('user_profiles').select('role').eq('id', user.id).single()
+  const [{ data: profile }, { data: coAdminRow }] = await Promise.all([
+    supabase.from('user_profiles').select('role').eq('id', user.id).single(),
+    supabase.from('tournament_admins').select('user_id').eq('tournament_id', id).eq('user_id', user.id).maybeSingle(),
+  ])
 
   const isAdmin = profile?.role === 'system_admin'
-  const isOwner = tournament.admin_id === user.id || tournament.created_by === user.id
+  const isOwner = tournament.admin_id === user.id || tournament.created_by === user.id || !!coAdminRow
   if (!isAdmin && !isOwner) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
 
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -56,14 +58,13 @@ export async function PATCH(
 
   if (!tournament) return NextResponse.json({ error: '대회 없음' }, { status: 404 })
 
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
+  const [{ data: profile }, { data: coAdminRow }] = await Promise.all([
+    supabase.from('user_profiles').select('role').eq('id', user.id).single(),
+    supabase.from('tournament_admins').select('user_id').eq('tournament_id', id).eq('user_id', user.id).maybeSingle(),
+  ])
 
   const isAdmin = profile?.role === 'system_admin'
-  const isOwner = tournament.admin_id === user.id || tournament.created_by === user.id
+  const isOwner = tournament.admin_id === user.id || tournament.created_by === user.id || !!coAdminRow
 
   if (!isAdmin && !isOwner) return NextResponse.json({ error: '권한 없음' }, { status: 403 })
 

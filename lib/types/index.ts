@@ -197,6 +197,14 @@ export interface CasualGame {
   created_at: string
 }
 
+export interface TournamentAdmin {
+  tournament_id: string
+  user_id: string
+  added_by?: string
+  added_at: string
+  user?: UserProfile
+}
+
 export interface TournamentWithDivisions extends Tournament {
   divisions: (Division & {
     phases: TournamentPhase[]
