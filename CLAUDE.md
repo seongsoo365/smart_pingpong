@@ -51,7 +51,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 - `app/admin/` — 보호된 페이지; `app/admin/layout.tsx`에서 인증 리다이렉트 처리
 - `app/admin/games/` — 일회성 게임 관리 (목록, 등록/수정/삭제)
 - `app/auth/login/` — 로그인 페이지
-- `app/api/` — API 라우트: `/admin/create-user`, `/tournaments/[id]`, `/divisions`, `/divisions/[id]`, `/games`(GET `?ids=` 파라미터로 특정 ID 필터 지원), `/games/[id]`, `/players/records`, `/players/search`
+- `app/(public)/tournaments/[id]/my-registration/` — 신청 정보 수정 페이지 (미승인 상태일 때만 접근 가능, 이름·부수 변경)
+- `app/api/` — API 라우트: `/admin/create-user`, `/tournaments/[id]`, `/tournaments/[id]/admins`(공동 관리자 GET/POST), `/tournaments/[id]/admins/[userId]`(공동 관리자 DELETE), `/divisions`, `/divisions/[id]`, `/games`(GET `?ids=` 파라미터로 특정 ID 필터 지원), `/games/[id]`, `/players/records`, `/players/search`
 
 ### Supabase 클라이언트 패턴
 
@@ -65,16 +66,23 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 ### RLS / 역할
 
-모든 RLS 정책은 `get_my_role()`(`supabase/migrations/002_fix_rls_recursion.sql`의 `SECURITY DEFINER` 함수)을 사용합니다 — `user_profiles`에 대한 재귀적 정책 평가를 방지합니다. RLS 정책 내에서 `user_profiles`를 직접 조회하지 마세요.
+두 개의 SECURITY DEFINER 헬퍼 함수로 재귀 방지:
+- `get_my_role()` — `user_profiles` 조회 재귀 방지 (`002_fix_rls_recursion.sql`)
+- `is_tournament_admin(tournament_id)` — 대회 관리 권한 통합 판별 (`019_tournament_co_admins.sql`): `admin_id`, `created_by`, `tournament_admins` 테이블, `system_admin` 중 하나라도 해당하면 `true`
 
-역할은 두 가지: `system_admin`은 모든 사용자와 대회를 관리하고, `tournament_admin`은 자신의 대회만 관리합니다. 모든 대회 데이터는 인증 없이 공개 읽기 가능합니다.
+RLS 정책 내에서 `user_profiles`를 직접 조회하지 마세요. 대회 쓰기 권한은 반드시 `is_tournament_admin()`을 사용하세요.
+
+역할: `system_admin`(전체 관리), `tournament_admin`(자기 대회 + 공동 관리자로 초대된 대회). 모든 대회 데이터는 인증 없이 공개 읽기 가능합니다.
+
+**신청자 자기수정**: `players` / `teams` / `team_members`의 `confirmed = false` 레코드는 비인증 사용자도 UPDATE/DELETE 가능 (`018_registration_self_edit.sql`). UUID가 사실상 비밀번호 역할.
 
 ### API 라우트 권한 검사 패턴
 
 API 라우트는 수동으로 소유권을 확인합니다 — 관리자 라우트에 별도의 인증 미들웨어가 없습니다. 패턴은 다음과 같습니다:
 1. `supabase.auth.getUser()`로 `user` 취득
 2. `user_profiles.role`을 조회하여 `system_admin` 여부 확인
-3. `tournament.admin_id === user.id || tournament.created_by === user.id`로 대회 소유권 확인
+3. `tournament.admin_id/created_by` 또는 `tournament_admins` 테이블로 소유권 확인
+4. `admin_id` 변경(위임)은 `created_by` 또는 `system_admin`만 허용
 
 ### Q&A 데이터 모델
 
@@ -90,6 +98,7 @@ API 라우트는 수동으로 소유권을 확인합니다 — 관리자 라우�
 ```
 tournament (대회)
   ├─ tournament_questions (Q&A, 1:N)
+  ├─ tournament_admins (공동 관리자, N:M) — user_id, added_by, added_at
   └─ division (부수, 1:N)  ← match_type: 'individual' | 'team'
        ├─ [개인전] player (선수, 1:N, player.division_id)
        ├─ [단체전] team (팀, 1:N, team.division_id)
@@ -134,12 +143,13 @@ tournament (대회)
 - `lib/utils/roundrobin.ts` — 원형법 일정 생성; `distributeIntoGroups(players, n)`은 뱀 시드 방식 사용.
 - `lib/utils/standings.ts` — 승수 → 세트 득실 → 점수 득실 순으로 순위 계산. `hasTieAtBoundary()`와 `getTieGroups()`로 동률 감지.
 - `lib/utils/myGames.ts` — 비로그인 사용자가 등록한 게임 ID를 `localStorage`에 보관. `addMyGame(id)` / `getMyGameIds()` / `removeMyGame(id)`. SSR 환경에서 안전하게 동작(`typeof window` 가드 포함).
+- `lib/utils/myRegistrations.ts` — 비로그인 사용자의 대회 신청 ID를 `localStorage['my_registrations']`에 보관. `addMyRegistration({id, type, tournament_id})` / `getMyRegistrations()` / `getMyRegistrationsByTournament(tournamentId)` / `removeMyRegistration(id)`.
 
 ### 컴포넌트
 
 - `components/ui/` — shadcn 스타일 기본 컴포넌트 (Button, Card, Badge, Tabs, Dialog 등)
 - `components/layout/` — `Header`, `AdminSidebar`, `MobileBottomNav`, `SetupBanner`
-- `components/tournament/` — `TournamentCard`, `StandingsTable`, `BracketView`, `GroupMatrix`, `QnaSection`, `MyGameHistory`(내가 등록한 일회성 게임 목록, localStorage 기반)
+- `components/tournament/` — `TournamentCard`, `StandingsTable`, `BracketView`, `GroupMatrix`, `QnaSection`, `MyGameHistory`(내가 등록한 일회성 게임 목록, localStorage 기반), `MyRegistrationStatus`(내 신청 내역 표시 + 수정/취소 버튼, 대회 상세 페이지에 임베드)
 
 ### UI 규칙
 
