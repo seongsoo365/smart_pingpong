@@ -6,7 +6,9 @@ import { ChevronLeft, Save, Loader2, CheckCircle2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { getMyRegistrationsByTournament } from '@/lib/utils/myRegistrations'
-import type { Player, Team, TeamMember, TeamMatchFormat } from '@/lib/types'
+import type { Division, Player, Team, TeamMember, TeamMatchFormat } from '@/lib/types'
+
+const genderLabel: Record<string, string> = { male: '남자', female: '여자', mixed: '혼합' }
 
 const TEAM_SIZE: Record<TeamMatchFormat, { min: number; max: number }> = {
   olympic:              { min: 3, max: 3 },
@@ -60,6 +62,10 @@ function EditContent() {
   const [members, setMembers] = useState<MemberInput[]>([])
   const [teamMatchFormat, setTeamMatchFormat] = useState<TeamMatchFormat | null>(null)
 
+  // division selection
+  const [divisions, setDivisions] = useState<Division[]>([])
+  const [divisionId, setDivisionId] = useState('')
+
   useEffect(() => {
     if (!regId) { setNotFound(true); setLoading(false); return }
 
@@ -73,6 +79,11 @@ function EditContent() {
 
   async function loadData() {
     setLoading(true)
+
+    const { data: divs } = await supabase
+      .from('divisions').select('*').eq('tournament_id', id).order('display_order')
+    const allDivs = (divs ?? []) as Division[]
+
     if (type === 'player') {
       const { data: p } = await supabase
         .from('players')
@@ -86,6 +97,8 @@ function EditContent() {
       setClub(player.club ?? '')
       setPhone(player.phone ?? '')
       setEmail(player.email ?? '')
+      setDivisionId(player.division_id)
+      setDivisions(allDivs.filter(d => d.match_type === 'individual'))
     } else {
       const { data: t } = await supabase
         .from('teams')
@@ -99,6 +112,8 @@ function EditContent() {
       setTeamClub(team.club ?? '')
       setTeamEmail(team.email ?? '')
       setTeamMatchFormat(team.division?.team_match_format ?? null)
+      setDivisionId(team.division_id)
+      setDivisions(allDivs.filter(d => d.match_type === 'team'))
       const sorted = [...(team.members ?? [])].sort((a, b) => a.player_order - b.player_order)
       setMembers(sorted.map(m => ({ name: m.player_name, level: m.player_level ?? '' })))
     }
@@ -115,6 +130,14 @@ function EditContent() {
     setMembers(prev => prev.map((m, i) => i === idx
       ? { ...m, [field]: field === 'level' ? (val ? Number(val) : '') : val }
       : m))
+  }
+
+  function handleDivisionChange(newDivId: string) {
+    setDivisionId(newDivId)
+    if (type === 'team') {
+      const div = divisions.find(d => d.id === newDivId)
+      setTeamMatchFormat(div?.team_match_format ?? null)
+    }
   }
 
   function handleMemberCountChange(count: number) {
@@ -137,6 +160,7 @@ function EditContent() {
       club: club.trim() || null,
       phone: phone.trim() || null,
       email: email.trim() || null,
+      division_id: divisionId,
     }).eq('id', regId)
     setSaving(false)
 
@@ -163,6 +187,7 @@ function EditContent() {
       name: teamName.trim(),
       club: teamClub.trim() || null,
       email: teamEmail.trim() || null,
+      division_id: divisionId,
     }).eq('id', regId)
 
     if (teamErr) { toast.error('수정 실패: ' + teamErr.message); setSaving(false); return }
@@ -236,6 +261,19 @@ function EditContent() {
 
       {type === 'player' ? (
         <form onSubmit={handleSavePlayer} className="glass rounded-2xl p-6 border border-white/10 space-y-5">
+          {divisions.length > 1 && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">신청 부수 *</label>
+              <select value={divisionId} onChange={e => handleDivisionChange(e.target.value)} required
+                className="w-full glass border border-white/10 rounded-xl px-4 py-2.5 text-sm bg-background outline-none focus:border-primary">
+                {divisions.map(div => (
+                  <option key={div.id} value={div.id}>
+                    {genderLabel[div.gender]} {div.name} (개인전)
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="space-y-1.5">
             <label className="text-sm font-medium">이름 *</label>
             <input required value={name} onChange={e => setName(e.target.value)}
@@ -269,6 +307,19 @@ function EditContent() {
         </form>
       ) : (
         <form onSubmit={handleSaveTeam} className="glass rounded-2xl p-6 border border-white/10 space-y-5">
+          {divisions.length > 1 && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">신청 부수 *</label>
+              <select value={divisionId} onChange={e => handleDivisionChange(e.target.value)} required
+                className="w-full glass border border-white/10 rounded-xl px-4 py-2.5 text-sm bg-background outline-none focus:border-primary">
+                {divisions.map(div => (
+                  <option key={div.id} value={div.id}>
+                    {genderLabel[div.gender]} {div.name} (단체전)
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           {size && (
             <p className="text-xs text-primary/80 bg-primary/10 rounded-lg px-3 py-2">
               팀원 {size.min === size.max ? `${size.min}명` : `${size.min}~${size.max}명`} 필요
