@@ -88,7 +88,7 @@ export default async function TournamentDetailPage({
             </span>
           </div>
           {tournament.registration_start && (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               접수 기간: {tournament.registration_start} ~ {tournament.registration_end}
             </p>
           )}
@@ -133,7 +133,7 @@ export default async function TournamentDetailPage({
                     <span className="font-semibold text-sm">
                       {genderLabel[div.gender]} {div.name}
                     </span>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <ShieldCheck className="w-3.5 h-3.5 text-primary" />
                         승인 {approved}{max ? `/${max}` : ''}팀
@@ -150,16 +150,16 @@ export default async function TournamentDetailPage({
                     </div>
                   </div>
                   {div.approvedTeams.length > 0 ? (
-                    <div className="divide-y divide-white/5">
+                    <div className="divide-y divide-white/10">
                       {div.approvedTeams.map((team, i) => (
                         <details key={team.id} className="group/team">
-                          <summary className="flex items-center gap-3 px-5 py-3 cursor-pointer hover:bg-white/5 transition-colors list-none">
+                          <summary className="flex items-center gap-3 px-5 py-3.5 cursor-pointer hover:bg-white/5 transition-colors list-none">
                             <span className="text-muted-foreground text-sm w-5 shrink-0 text-right">{i + 1}</span>
                             <div className="flex-1 min-w-0">
                               <span className="font-medium">{team.name}</span>
-                              {team.club && <span className="text-xs text-muted-foreground ml-2">{team.club}</span>}
+                              {team.club && <span className="text-sm text-muted-foreground ml-2">{team.club}</span>}
                             </div>
-                            <span className="text-xs text-muted-foreground shrink-0">
+                            <span className="text-sm text-muted-foreground shrink-0">
                               {team.members.length}명
                               <ChevronRight className="w-3.5 h-3.5 inline ml-1 transition-transform group-open/team:rotate-90" />
                             </span>
@@ -168,7 +168,7 @@ export default async function TournamentDetailPage({
                             {team.members.map(m => (
                               <div key={m.id} className="flex items-center gap-2 text-sm text-muted-foreground">
                                 <span className="w-4 text-right text-xs shrink-0">{m.player_order}</span>
-                                <span className="text-foreground/80">
+                                <span className="text-foreground">
                                   {m.player_name}
                                   {m.player_level && <span className="text-muted-foreground text-xs ml-0.5">({m.player_level}부)</span>}
                                 </span>
@@ -188,15 +188,15 @@ export default async function TournamentDetailPage({
                           <Clock className="w-3.5 h-3.5" /> 대기 순번
                         </span>
                       </div>
-                      <div className="divide-y divide-white/5">
+                      <div className="divide-y divide-white/10">
                         {div.pendingTeams.map((team, i) => (
-                          <div key={team.id} className="flex items-center gap-3 px-5 py-3">
-                            <span className="text-accent text-xs w-5 shrink-0 text-right font-medium">{i + 1}</span>
+                          <div key={team.id} className="flex items-center gap-3 px-5 py-3.5">
+                            <span className="text-accent text-sm w-5 shrink-0 text-right font-medium">{i + 1}</span>
                             <div className="flex-1 min-w-0">
                               <span className="text-muted-foreground">{team.name}</span>
-                              {team.club && <span className="text-xs text-muted-foreground/60 ml-2">{team.club}</span>}
+                              {team.club && <span className="text-sm text-muted-foreground ml-2">{team.club}</span>}
                             </div>
-                            <span className="text-xs text-muted-foreground/50 shrink-0">
+                            <span className="text-sm text-muted-foreground shrink-0">
                               <Users className="w-3 h-3 inline mr-0.5" />{team.members.length}명
                             </span>
                           </div>

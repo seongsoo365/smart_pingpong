@@ -293,17 +293,17 @@ export default function PlayersPage() {
 
           {/* Win/Loss Summary */}
           <div className="grid grid-cols-3 gap-3">
-            <div className="glass rounded-xl p-4 text-center">
+            <div className="glass rounded-xl p-5 text-center">
               <p className="text-2xl font-bold text-primary">{records.total_wins}</p>
-              <p className="text-xs text-muted-foreground mt-1">승</p>
+              <p className="text-sm text-muted-foreground mt-1">승</p>
             </div>
-            <div className="glass rounded-xl p-4 text-center">
+            <div className="glass rounded-xl p-5 text-center">
               <p className="text-2xl font-bold text-red-400">{records.total_losses}</p>
-              <p className="text-xs text-muted-foreground mt-1">패</p>
+              <p className="text-sm text-muted-foreground mt-1">패</p>
             </div>
-            <div className="glass rounded-xl p-4 text-center">
+            <div className="glass rounded-xl p-5 text-center">
               <p className="text-2xl font-bold text-amber-400">{winRate}%</p>
-              <p className="text-xs text-muted-foreground mt-1">승률</p>
+              <p className="text-sm text-muted-foreground mt-1">승률</p>
             </div>
           </div>
 
@@ -313,7 +313,7 @@ export default function PlayersPage() {
               <div className="px-5 py-4 border-b border-white/10">
                 <h3 className="font-semibold">상대 전적</h3>
               </div>
-              <div className="divide-y divide-white/5">
+              <div className="divide-y divide-white/10">
                 {records.h2h.map(h => {
                   const rate = Math.round((h.wins / (h.wins + h.losses)) * 100)
                   const isExpanded = expandedH2H === h.opponent_key
@@ -321,7 +321,7 @@ export default function PlayersPage() {
                     <div key={h.opponent_key}>
                       <button
                         onClick={() => setExpandedH2H(isExpanded ? null : h.opponent_key)}
-                        className="w-full flex items-center gap-3 px-5 py-3 hover:bg-white/5 transition-colors text-left"
+                        className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-white/5 transition-colors text-left"
                       >
                         <div className="flex-1 min-w-0">
                           <span className="text-sm font-medium">{h.opponent_name}</span>
@@ -339,18 +339,18 @@ export default function PlayersPage() {
                         </div>
                       </button>
                       {isExpanded && (
-                        <div className="bg-white/[0.02] px-5 pb-3 pt-1 space-y-1">
+                        <div className="bg-white/[0.04] px-5 pb-3 pt-1 space-y-1">
                           {h.matches.map(m => (
-                            <div key={m.id} className="flex items-center gap-2 py-1 text-xs text-muted-foreground">
+                            <div key={m.id} className="flex items-center gap-2 py-1 text-sm text-muted-foreground">
                               <span className={`font-semibold w-4 ${m.won ? 'text-primary' : 'text-red-400'}`}>
                                 {m.won ? '승' : '패'}
                               </span>
-                              <span className="font-mono text-white/70">{m.my_score}:{m.opp_score}</span>
-                              <span className="text-white/30">·</span>
+                              <span className="font-mono text-foreground">{m.my_score}:{m.opp_score}</span>
+                              <span className="text-muted-foreground">·</span>
                               <span>{formatPhaseRound(m.phase_type, m.round, m.division_name)}</span>
                               {m.phase_type !== 'casual' && (
                                 <>
-                                  <span className="text-white/30">·</span>
+                                  <span className="text-muted-foreground">·</span>
                                   <span className="truncate">{m.tournament_name} / {m.division_name}</span>
                                 </>
                               )}
@@ -374,9 +374,9 @@ export default function PlayersPage() {
             {records.matches.length === 0 ? (
               <p className="px-5 py-8 text-center text-sm text-muted-foreground">완료된 경기 기록이 없습니다.</p>
             ) : (
-              <div className="divide-y divide-white/5">
+              <div className="divide-y divide-white/10">
                 {records.matches.map(m => (
-                  <div key={m.id} className="flex items-start gap-3 px-5 py-3">
+                  <div key={m.id} className="flex items-start gap-3 px-5 py-3.5">
                     <span
                       className={`shrink-0 text-xs font-bold px-2 py-0.5 rounded mt-0.5 ${
                         m.won ? 'bg-primary/20 text-primary' : 'bg-red-500/20 text-red-400'
@@ -391,7 +391,7 @@ export default function PlayersPage() {
                           <span className="text-xs text-muted-foreground">{m.opponent_club}</span>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                      <p className="text-sm text-muted-foreground mt-0.5 truncate">
                         {m.phase_type === 'casual' ? (
                           <>
                             <span className="text-accent font-medium">일회성 게임</span>
@@ -406,7 +406,7 @@ export default function PlayersPage() {
                     <div className="shrink-0 text-right">
                       <p className="font-mono text-sm font-semibold">{m.my_score}:{m.opp_score}</p>
                       {m.sets.length > 0 && (
-                        <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{formatSets(m.sets)}</p>
+                        <p className="text-xs text-muted-foreground font-mono mt-0.5">{formatSets(m.sets)}</p>
                       )}
                     </div>
                   </div>

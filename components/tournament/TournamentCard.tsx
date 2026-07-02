@@ -24,7 +24,7 @@ export default function TournamentCard({ tournament }: { tournament: Tournament 
         <h3 className="font-bold text-base text-foreground mb-3 group-hover:text-primary transition-colors line-clamp-2">
           {name}
         </h3>
-        <div className="space-y-1.5 text-sm text-muted-foreground">
+        <div className="space-y-2 text-sm text-foreground/70">
           <div className="flex items-center gap-2">
             <Calendar className="w-3.5 h-3.5 shrink-0" />
             <span>{start_date} ~ {end_date}</span>

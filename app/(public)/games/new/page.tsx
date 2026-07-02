@@ -181,9 +181,9 @@ export default function NewGamePage() {
 
       {/* 선수 정보 */}
       <div className="glass rounded-xl p-5 space-y-4">
-        <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">선수 정보</h2>
+        <h2 className="font-semibold text-sm text-foreground">선수 정보</h2>
         <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>선수 1 이름 *</Label>
             <Input
               value={form.player1_name}
@@ -191,7 +191,7 @@ export default function NewGamePage() {
               placeholder="이름"
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>소속</Label>
             <Input
               value={form.player1_club}
@@ -199,7 +199,7 @@ export default function NewGamePage() {
               placeholder="소속 (선택)"
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>선수 2 이름 *</Label>
             <Input
               value={form.player2_name}
@@ -207,7 +207,7 @@ export default function NewGamePage() {
               placeholder="이름"
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>소속</Label>
             <Input
               value={form.player2_club}
@@ -222,7 +222,7 @@ export default function NewGamePage() {
       <div className="glass rounded-xl p-5 space-y-4">
         {/* 모드 탭 */}
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">세트 점수 입력</h2>
+          <h2 className="font-semibold text-sm text-foreground">세트 점수 입력</h2>
           <div className="flex rounded-lg overflow-hidden border border-white/10 text-xs">
             <button
               type="button"
@@ -252,10 +252,10 @@ export default function NewGamePage() {
         {/* 약식 모드 */}
         {mode === 'simple' && (
           <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">최종 세트 점수만 입력합니다. (예: 3:1)</p>
+            <p className="text-sm text-muted-foreground">최종 세트 점수만 입력합니다. (예: 3:1)</p>
             <div className="flex items-center gap-3">
               <div className="flex-1 text-center">
-                <p className="text-xs text-muted-foreground mb-1.5 truncate">
+                <p className="text-sm text-muted-foreground mb-1.5 truncate">
                   {form.player1_name || '선수 1'}
                 </p>
                 <Input
@@ -271,9 +271,9 @@ export default function NewGamePage() {
                   placeholder="0"
                 />
               </div>
-              <span className="text-2xl font-bold text-muted-foreground shrink-0 mt-5">:</span>
+              <span className="text-2xl font-bold text-foreground/60 shrink-0 mt-5">:</span>
               <div className="flex-1 text-center">
-                <p className="text-xs text-muted-foreground mb-1.5 truncate">
+                <p className="text-sm text-muted-foreground mb-1.5 truncate">
                   {form.player2_name || '선수 2'}
                 </p>
                 <Input
@@ -298,7 +298,7 @@ export default function NewGamePage() {
           <div className="space-y-4">
             {/* 경기 형식 */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label className="text-xs">세트 수</Label>
                 <div className="flex gap-1">
                   {GAMES_PER_MATCH_OPTIONS.map(n => (
@@ -317,7 +317,7 @@ export default function NewGamePage() {
                   ))}
                 </div>
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label className="text-xs">세트당 점수</Label>
                 <div className="flex gap-1">
                   {POINTS_PER_GAME_OPTIONS.map(n => (
@@ -399,9 +399,9 @@ export default function NewGamePage() {
 
       {/* 기타 정보 */}
       <div className="glass rounded-xl p-5 space-y-3">
-        <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">기타 정보</h2>
+        <h2 className="font-semibold text-sm text-foreground">기타 정보</h2>
         <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>경기 날짜</Label>
             <Input
               type="date"
@@ -409,7 +409,7 @@ export default function NewGamePage() {
               onChange={e => setForm(f => ({ ...f, played_at: e.target.value }))}
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label>장소 (선택)</Label>
             <Input
               value={form.venue}
@@ -418,7 +418,7 @@ export default function NewGamePage() {
             />
           </div>
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label>메모 (선택)</Label>
           <Input
             value={form.notes}
