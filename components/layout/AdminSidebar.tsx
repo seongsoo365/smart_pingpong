@@ -56,7 +56,7 @@ export default function AdminSidebar() {
 
       <div className="flex items-center gap-2 px-2 mb-1">
         <ThemeToggle />
-        <span className="text-xs text-muted-foreground">테마</span>
+        <span className="text-sm text-muted-foreground">테마</span>
       </div>
       <button
         onClick={handleLogout}

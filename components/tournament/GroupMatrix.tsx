@@ -29,26 +29,26 @@ export default function GroupMatrix({ participants, matches, participantLabel = 
 
   return (
     <div className="overflow-x-auto rounded-xl border border-white/10">
-      <table className="w-full text-xs border-collapse">
+      <table className="w-full text-sm border-collapse">
         <thead>
           <tr className="border-b border-white/10">
-            <th className="py-2 px-3 text-left text-muted-foreground font-medium bg-white/[0.02] min-w-[120px]">
+            <th className="py-2.5 px-3 text-left text-foreground font-semibold bg-white/[0.04] min-w-[120px]">
               {participantLabel}
             </th>
             {participants.map((p) => (
-              <th key={p.id} className="py-2 px-2 text-center text-muted-foreground font-medium bg-white/[0.02] min-w-[72px]">
-                <span className="text-[11px] leading-tight break-keep">{p.name}</span>
+              <th key={p.id} className="py-2.5 px-2 text-center text-foreground font-semibold bg-white/[0.04] min-w-[72px]">
+                <span className="text-xs leading-tight break-keep">{p.name}</span>
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
           {participants.map((row, ri) => (
-            <tr key={row.id} className="border-t border-white/5 hover:bg-white/[0.02] transition-colors">
-              <td className="py-2 px-3">
+            <tr key={row.id} className="border-t border-white/10 hover:bg-white/[0.03] transition-colors">
+              <td className="py-2.5 px-3">
                 <span className="font-medium">{row.name}</span>
                 {row.club && (
-                  <span className="text-muted-foreground ml-1 hidden sm:inline text-[11px]">
+                  <span className="text-muted-foreground ml-1 hidden sm:inline text-xs">
                     {row.club}
                   </span>
                 )}
@@ -56,19 +56,19 @@ export default function GroupMatrix({ participants, matches, participantLabel = 
               {participants.map((col, ci) => {
                 if (ri === ci) {
                   return (
-                    <td key={col.id} className="py-2 px-2 text-center bg-white/[0.03]">
-                      <span className="text-white/20">―</span>
+                    <td key={col.id} className="py-2.5 px-2 text-center bg-white/[0.05]">
+                      <span className="text-muted-foreground">―</span>
                     </td>
                   )
                 }
                 const cell = grid[row.id]?.[col.id]
                 if (!cell) {
                   return (
-                    <td key={col.id} className="py-2 px-2 text-center text-white/20">·</td>
+                    <td key={col.id} className="py-2.5 px-2 text-center text-muted-foreground/50">·</td>
                   )
                 }
                 return (
-                  <td key={col.id} className="py-2 px-2 text-center tabular-nums">
+                  <td key={col.id} className="py-2.5 px-2 text-center tabular-nums">
                     <span className={cn(
                       'font-semibold',
                       cell.rowWon ? 'text-primary' : 'text-muted-foreground'

@@ -28,15 +28,15 @@ export default function StandingsTable({
       <Table>
         <TableHeader>
           <TableRow className="border-white/10 hover:bg-transparent">
-            <TableHead className="w-10 text-center text-muted-foreground">순위</TableHead>
-            <TableHead className="text-muted-foreground">{isTeam ? '팀' : '선수'}</TableHead>
-            <TableHead className="text-center text-muted-foreground">승</TableHead>
-            <TableHead className="text-center text-muted-foreground">패</TableHead>
-            <TableHead className="text-center text-muted-foreground hidden sm:table-cell">
+            <TableHead className="w-10 text-center text-foreground font-semibold">순위</TableHead>
+            <TableHead className="text-foreground font-semibold">{isTeam ? '팀' : '선수'}</TableHead>
+            <TableHead className="text-center text-foreground font-semibold">승</TableHead>
+            <TableHead className="text-center text-foreground font-semibold">패</TableHead>
+            <TableHead className="text-center text-foreground font-semibold hidden sm:table-cell">
               {isTeam ? '경기' : '세트'}
             </TableHead>
             {!isTeam && (
-              <TableHead className="text-center text-muted-foreground hidden md:table-cell">점수</TableHead>
+              <TableHead className="text-center text-foreground font-semibold hidden md:table-cell">점수</TableHead>
             )}
           </TableRow>
         </TableHeader>
@@ -47,8 +47,8 @@ export default function StandingsTable({
               <TableRow
                 key={row.ranking}
                 className={cn(
-                  'border-white/5 transition-colors',
-                  isAdvancing && 'bg-primary/5'
+                  'border-white/10 transition-colors',
+                  isAdvancing && 'bg-primary/10'
                 )}
               >
                 <TableCell className="text-center font-bold">
@@ -65,10 +65,10 @@ export default function StandingsTable({
                 </TableCell>
                 <TableCell>
                   <div className="font-medium text-foreground">{row.name}</div>
-                  {row.club && <div className="text-xs text-muted-foreground">{row.club}</div>}
+                  {row.club && <div className="text-sm text-muted-foreground">{row.club}</div>}
                 </TableCell>
                 <TableCell className="text-center font-semibold text-primary">{row.wins}</TableCell>
-                <TableCell className="text-center text-muted-foreground">{row.losses}</TableCell>
+                <TableCell className="text-center font-semibold text-red-400">{row.losses}</TableCell>
                 <TableCell className="text-center text-sm hidden sm:table-cell">
                   {row.sets_won}<span className="text-muted-foreground">/{row.sets_lost}</span>
                 </TableCell>

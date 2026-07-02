@@ -43,7 +43,7 @@ export default function BracketView({ matches, totalRounds, isTeam = false }: Pr
             <div key={ri} className="flex items-start">
               <div style={{ width: CARD_W }}>
                 <div
-                  className="text-xs font-semibold text-muted-foreground text-center uppercase tracking-wider"
+                  className="text-sm font-semibold text-foreground text-center"
                   style={{ height: HEADER_H, lineHeight: `${HEADER_H}px` }}
                 >
                   {getRoundName(ri + 1, totalRounds)}
@@ -114,7 +114,7 @@ function BracketMatchCard({ match, isTeam }: { match: BracketMatch; isTeam: bool
       />
       {/* 단체전 개인경기 결과 요약 */}
       {isTeam && isDone && sets.length > 0 && (
-        <div className="flex items-center justify-center gap-0.5 px-3 py-1.5 border-t border-border">
+        <div className="flex items-center justify-center gap-1 px-3 py-1.5 border-t border-border">
           {sets.map((s, i) => {
             const p1Won = s.score1 > s.score2
             const p2Won = s.score2 > s.score1
@@ -123,8 +123,8 @@ function BracketMatchCard({ match, isTeam }: { match: BracketMatch; isTeam: bool
                 key={i}
                 title={p1Won ? (p1Name ?? '팀1') : p2Won ? (p2Name ?? '팀2') : '-'}
                 className={cn(
-                  'w-2.5 h-2.5 rounded-full shrink-0',
-                  p1Won ? 'bg-primary' : p2Won ? 'bg-accent' : 'bg-muted-foreground/30'
+                  'w-3 h-3 rounded-full shrink-0',
+                  p1Won ? 'bg-primary' : p2Won ? 'bg-accent' : 'bg-muted-foreground/40'
                 )}
               />
             )
@@ -149,17 +149,17 @@ function ParticipantRow({
     )}>
       <div className="flex-1 min-w-0 mr-2">
         {displayLabel ? (
-          <div className="text-xs italic text-muted-foreground/70 truncate">{label}</div>
+          <div className="text-xs italic text-muted-foreground truncate">{label}</div>
         ) : (
           <div className={cn('font-medium truncate', isWinner ? 'text-primary' : 'text-foreground')}>
             {name ?? 'TBD'}
             {!isTeam && club && (
-              <span className="text-[11px] font-normal text-muted-foreground ml-1">({club})</span>
+              <span className="text-xs font-normal text-muted-foreground ml-1">({club})</span>
             )}
           </div>
         )}
         {!displayLabel && isTeam && club && (
-          <div className="text-[11px] text-muted-foreground truncate">{club}</div>
+          <div className="text-xs text-muted-foreground truncate">{club}</div>
         )}
       </div>
       {name && !isEmpty && (
