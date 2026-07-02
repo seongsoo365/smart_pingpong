@@ -37,6 +37,7 @@ smart_pingpong/
 │   │       └── [id]/
 │   │           ├── page.tsx            # 대회 상세
 │   │           ├── register/page.tsx   # 온라인 참가 신청 (개인/단체)
+│   │           ├── my-registration/page.tsx  # 신청 정보 수정 (미승인 상태일 때 이름·부수 변경)
 │   │           └── divisions/[divId]/page.tsx  # 부수 상세 (예선 매트릭스, 본선 브라켓)
 │   ├── admin/                          # 보호된 관리자 페이지
 │   │   ├── layout.tsx                  # 인증 확인 + AdminSidebar + MobileBottomNav
@@ -59,7 +60,11 @@ smart_pingpong/
 │   │   ├── divisions/
 │   │   │   ├── route.ts                # 부수 생성
 │   │   │   └── [id]/route.ts           # 부수 수정/삭제
-│   │   ├── tournaments/[id]/route.ts   # 대회 수정/삭제
+│   │   ├── tournaments/[id]/
+│   │   │   ├── route.ts                # 대회 수정/삭제
+│   │   │   └── admins/
+│   │   │       ├── route.ts            # 공동 관리자 GET(목록) / POST(추가)
+│   │   │       └── [userId]/route.ts   # 공동 관리자 DELETE(제거)
 │   │   ├── games/
 │   │   │   ├── route.ts                # 일회성 게임 GET(목록, ?ids=로 특정 ID 필터) / POST(등록, 비인증 허용)
 │   │   │   └── [id]/route.ts           # 일회성 게임 PUT(수정) / DELETE(삭제, 소유자·admin)
@@ -87,7 +92,8 @@ smart_pingpong/
 │   │   ├── StandingsTable.tsx          # 조별 순위표
 │   │   ├── DivisionRealtimeContent.tsx # 부수 상세 실시간 구독 클라이언트 컴포넌트
 │   │   ├── QnaSection.tsx              # 공개 Q&A 섹션
-│   │   └── MyGameHistory.tsx           # 내가 등록한 일회성 게임 기록 목록 (localStorage 기반)
+│   │   ├── MyGameHistory.tsx           # 내가 등록한 일회성 게임 기록 목록 (localStorage 기반)
+│   │   └── MyRegistrationStatus.tsx    # 내 신청 내역 (localStorage 기반, 수정·취소 버튼 포함)
 │   └── ui/                             # shadcn 기본 컴포넌트
 │       ├── button, card, badge, tabs, dialog, select
 │       ├── input, label, textarea, separator
@@ -103,7 +109,8 @@ smart_pingpong/
 │       ├── bracket.ts                  # 시드 브라켓 생성 (generateSeededBracket, getBracketRounds)
 │       ├── roundrobin.ts               # 원형법 리그 일정 (distributeIntoGroups)
 │       ├── standings.ts                # 순위 계산 + 동률 감지 (hasTieAtBoundary, getTieGroups)
-│       └── myGames.ts                  # 내 일회성 게임 ID localStorage 관리 (addMyGame, getMyGameIds, removeMyGame)
+│       ├── myGames.ts                  # 내 일회성 게임 ID localStorage 관리 (addMyGame, getMyGameIds, removeMyGame)
+│       └── myRegistrations.ts          # 내 대회 신청 ID localStorage 관리 (addMyRegistration, getMyRegistrations, removeMyRegistration)
 ├── supabase/migrations/                # 순서대로 실행해야 하는 DB 마이그레이션
 │   ├── 001_initial_schema.sql          # 기본 테이블 + RLS + 트리거
 │   ├── 002_fix_rls_recursion.sql       # get_my_role() SECURITY DEFINER 함수
@@ -117,7 +124,10 @@ smart_pingpong/
 │   ├── 011_social_auth.sql             # user_profiles.provider, avatar_url
 │   ├── 012_tournament_regulations.sql  # tournaments.regulations 컬럼
 │   ├── 016_casual_games.sql            # casual_games 테이블 + RLS (인증 필요 쓰기)
-│   └── 017_casual_games_public.sql     # casual_games INSERT RLS 공개 허용 (비인증 등록)
+│   ├── 017_casual_games_public.sql     # casual_games INSERT RLS 공개 허용 (비인증 등록)
+│   ├── 018_phase_team_match_format.sql # tournament_phases.team_match_format 컬럼
+│   ├── 018_registration_self_edit.sql  # 미승인 신청자 본인 UPDATE/DELETE 허용 RLS
+│   └── 019_tournament_co_admins.sql    # tournament_admins 테이블 + is_tournament_admin() 함수 + RLS 전면 재작성
 ├── proxy.ts                            # Next.js 16 middleware 대체 (세션 쿠키 갱신)
 └── CLAUDE.md / AGENTS.md / ARCHITECT.md / roadmap.md
 ```
@@ -132,9 +142,12 @@ user_profiles (auth.users 확장)
 
 tournament
   ├─ tournament_questions (Q&A, 1:N)
+  ├─ tournament_admins (공동 관리자, N:M) — user_id, added_by, added_at
   └─ division (부수, 1:N)  match_type: 'individual' | 'team'
        ├─ [개인전] player (1:N, division_id)  — confirmed, seed, group_id
+       │    RLS: confirmed=false인 미승인 레코드는 공개 UPDATE/DELETE 허용 (신청자 수정·취소)
        ├─ [단체전] team (1:N, division_id)    — confirmed, seed, group_id, max_teams
+       │    RLS: 동일 (미승인 팀은 공개 UPDATE/DELETE 허용)
        │    └─ team_member (1:N, team_id)    — player_name, player_order, player_level
        └─ tournament_phase (1:N)  phase_type: 'preliminary'|'main'
             ├─ group (1:N, 리그 풀)
@@ -161,6 +174,8 @@ casual_games (일회성 게임 — 대회 구조 독립)
 | `PhaseFormat` | `'round_robin' \| 'single_elimination' \| ...` |
 | `MatchStatus` | `'pending' \| 'in_progress' \| 'completed' \| 'bye'` |
 | `TeamMatchFormat` | `'olympic' \| 'swaythling' \| ...` 6종 |
+| `TournamentAdmin` | `{ tournament_id, user_id, added_by?, added_at, user?: UserProfile }` |
+| `MyRegistration` | `{ id, type: 'player'\|'team', tournament_id }` — localStorage 저장용 |
 
 ---
 
@@ -199,16 +214,35 @@ Naver OAuth:
 ## RLS / 권한 구조
 
 - 모든 대회 데이터(tournaments, divisions, players, matches 등): **인증 없이 공개 읽기(SELECT)**
-- `user_profiles` 재귀 방지: 모든 RLS 정책은 `get_my_role()` (`002_fix_rls_recursion.sql`, SECURITY DEFINER) 사용
-- `system_admin`: 모든 유저·대회 관리 가능
-- `tournament_admin`: `admin_id = auth.uid() OR created_by = auth.uid()` 인 대회만 관리
+- `user_profiles` 재귀 방지: `get_my_role()` (`002_fix_rls_recursion.sql`, SECURITY DEFINER) 사용
+- **대회 쓰기 권한**: `is_tournament_admin(tournament_id)` (`019_tournament_co_admins.sql`, SECURITY DEFINER) 함수로 통합 판별
+  - `admin_id = auth.uid()` — 대표 관리자
+  - `created_by = auth.uid()` — 원본 생성자
+  - `tournament_admins` 테이블에 존재 — 공동 관리자
+  - `user_profiles.role = 'system_admin'` — 시스템 관리자
+- tournaments, divisions, players, teams, team_members, matches, match_sets, standings 등 **모든 하위 테이블 쓰기 정책이 `is_tournament_admin()` 기반으로 통일**
+
+### 관리자 권한 계층
+
+| 역할 | 대회 데이터 수정 | 공동관리자 추가/삭제 | admin_id 변경 |
+|------|----------------|-------------------|--------------|
+| `system_admin` | ✅ | ✅ | ✅ |
+| `created_by` (원본 생성자) | ✅ | ✅ | ✅ |
+| `admin_id` (대표 관리자) | ✅ | ✅ | ❌ |
+| `tournament_admins` (공동 관리자) | ✅ | ❌ | ❌ |
 
 ### API 라우트 권한 패턴
 ```ts
 1. supabase.auth.getUser() → user
 2. user_profiles.role 조회 → system_admin 여부
-3. tournament.admin_id === user.id || tournament.created_by === user.id → 소유권
+3. tournament.admin_id/created_by 또는 tournament_admins 테이블 → 소유권
+// admin_id 변경(위임)은 created_by 또는 system_admin만 가능
 ```
+
+### 신청자 자기수정 RLS (`018_registration_self_edit.sql`)
+- `players` / `teams`: `confirmed = false` 조건 하에 공개 UPDATE / DELETE 허용
+- `team_members`: 소속 팀이 `confirmed = false`이면 공개 UPDATE / DELETE 허용
+- UUID 기반 레코드 ID로 사실상 본인 확인 (브루트포스 방지)
 
 ---
 
@@ -307,7 +341,9 @@ RESEND_API_KEY                  # (선택) 이메일 알림, 없으면 silent sk
 ## 마이그레이션 실행 순서
 
 Supabase SQL Editor에서 번호 순서대로 실행:
-`001 → 002 → 003 → 004 → 005 → 006 → 008 → 009 → 010 → 011 → 012 → 016 → 017`
+`001 → 002 → 003 → 004 → 005 → 006 → 008 → 009 → 010 → 011 → 012 → 016 → 017 → 018_phase_team_match_format → 018_registration_self_edit → 019`
 
 > 007은 결번 (team_member_level은 009에 통합됨)  
-> 013·014·015는 소셜 로그인/비밀번호 관련 마이그레이션 (별도 실행됨)
+> 013·014·015는 소셜 로그인/비밀번호 관련 마이그레이션 (별도 실행됨)  
+> 018이 두 파일(phase_team_match_format, registration_self_edit)이므로 둘 다 실행 필요  
+> 019는 기존 RLS 정책을 DROP 후 재생성하므로 반드시 018 이후에 실행

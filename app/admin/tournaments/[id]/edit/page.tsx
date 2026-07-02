@@ -2,11 +2,11 @@
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, Users, GitBranch, ClipboardList, Plus, Trash2, Save, ExternalLink, Pencil, Check, X, FileCheck, Settings2, MessageCircle, AlertTriangle } from 'lucide-react'
+import { ChevronLeft, Users, GitBranch, ClipboardList, Plus, Trash2, Save, ExternalLink, Pencil, Check, X, FileCheck, Settings2, MessageCircle, AlertTriangle, UserCog, Search, RotateCcw } from 'lucide-react'
 import { HelpPopover } from '@/components/ui/help-popover'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import type { Tournament, Division, TournamentPhase, Gender, MatchType, TeamMatchFormat, PhaseFormat } from '@/lib/types'
+import type { Tournament, Division, TournamentPhase, Gender, MatchType, TeamMatchFormat, PhaseFormat, UserProfile, TournamentAdmin } from '@/lib/types'
 
 const genderLabel: Record<string, string> = { male: '남자', female: '여자', mixed: '혼합' }
 const matchTypeLabel: Record<string, string> = { individual: '개인전', team: '단체전' }
@@ -76,12 +76,35 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
   const [phaseEdit, setPhaseEdit] = useState<PhaseEdit>(defaultPhaseEdit())
   const [savingPhase, setSavingPhase] = useState(false)
 
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [isSystemAdmin, setIsSystemAdmin] = useState(false)
+  const [currentAdmin, setCurrentAdmin] = useState<UserProfile | null>(null)
+  const [delegateSearch, setDelegateSearch] = useState('')
+  const [delegateResults, setDelegateResults] = useState<UserProfile[]>([])
+  const [selectedDelegate, setSelectedDelegate] = useState<UserProfile | null>(null)
+  const [savingDelegate, setSavingDelegate] = useState(false)
+  const [showDelegateResults, setShowDelegateResults] = useState(false)
+
+  // 공동 관리자
+  const [coAdmins, setCoAdmins] = useState<UserProfile[]>([])
+  const [coAdminSearch, setCoAdminSearch] = useState('')
+  const [coAdminResults, setCoAdminResults] = useState<UserProfile[]>([])
+  const [showCoAdminResults, setShowCoAdminResults] = useState(false)
+  const [addingCoAdmin, setAddingCoAdmin] = useState(false)
+
   useEffect(() => {
     async function load() {
-      const [{ data: t }, { data: d }] = await Promise.all([
+      const [{ data: { user } }, { data: t }, { data: d }] = await Promise.all([
+        supabase.auth.getUser(),
         supabase.from('tournaments').select('*').eq('id', id).single(),
         supabase.from('divisions').select('*').eq('tournament_id', id).order('display_order'),
       ])
+      if (user) {
+        setCurrentUserId(user.id)
+        const { data: profile } = await supabase
+          .from('user_profiles').select('role').eq('id', user.id).single()
+        if (profile?.role === 'system_admin') setIsSystemAdmin(true)
+      }
       if (t) {
         setTournament(t)
         setForm({
@@ -95,6 +118,18 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
           registration_end: t.registration_end ?? '',
           status: t.status ?? 'draft',
         })
+        // 위임 관리자 프로필 로드 (created_by와 admin_id가 다를 때만)
+        if (t.admin_id && t.admin_id !== t.created_by) {
+          const { data: adminProfile } = await supabase
+            .from('user_profiles').select('id, name, email, role').eq('id', t.admin_id).single()
+          if (adminProfile) setCurrentAdmin(adminProfile as UserProfile)
+        }
+        // 공동 관리자 목록 로드
+        const coAdminsRes = await fetch(`/api/tournaments/${id}/admins`)
+        if (coAdminsRes.ok) {
+          const coAdminsData = await coAdminsRes.json() as (TournamentAdmin & { user: UserProfile })[]
+          setCoAdmins(coAdminsData.map(ca => ca.user).filter(Boolean))
+        }
       }
       const divList = d ?? []
       setDivisions(divList)
@@ -200,6 +235,96 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
       const err = await res.json()
       toast.error(err.error)
     }
+  }
+
+  async function searchUsers(q: string) {
+    setDelegateSearch(q)
+    if (!q.trim()) { setDelegateResults([]); setShowDelegateResults(false); return }
+    const res = await fetch(`/api/admin/users/search?q=${encodeURIComponent(q)}`)
+    if (res.ok) {
+      const data = await res.json()
+      setDelegateResults(data)
+      setShowDelegateResults(true)
+    }
+  }
+
+  async function searchCoAdminUsers(q: string) {
+    setCoAdminSearch(q)
+    if (!q.trim()) { setCoAdminResults([]); setShowCoAdminResults(false); return }
+    const res = await fetch(`/api/admin/users/search?q=${encodeURIComponent(q)}`)
+    if (res.ok) {
+      const data: UserProfile[] = await res.json()
+      // 이미 추가된 공동 관리자 및 대표 관리자 제외
+      const existingIds = new Set([
+        ...coAdmins.map(ca => ca.id),
+        tournament?.admin_id,
+        tournament?.created_by,
+        currentUserId,
+      ])
+      setCoAdminResults(data.filter(u => !existingIds.has(u.id)))
+      setShowCoAdminResults(true)
+    }
+  }
+
+  async function handleAddCoAdmin(u: UserProfile) {
+    setAddingCoAdmin(true)
+    setCoAdminSearch('')
+    setCoAdminResults([])
+    setShowCoAdminResults(false)
+    const res = await fetch(`/api/tournaments/${id}/admins`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: u.id }),
+    })
+    if (res.ok) {
+      setCoAdmins(prev => [...prev, u])
+      toast.success(`${u.name}님을 공동 관리자로 추가했습니다`)
+    } else {
+      const err = await res.json()
+      toast.error('추가 실패: ' + err.error)
+    }
+    setAddingCoAdmin(false)
+  }
+
+  async function handleRemoveCoAdmin(u: UserProfile) {
+    if (!confirm(`"${u.name}"의 공동 관리자 권한을 제거하시겠습니까?`)) return
+    const res = await fetch(`/api/tournaments/${id}/admins/${u.id}`, { method: 'DELETE' })
+    if (res.ok) {
+      setCoAdmins(prev => prev.filter(ca => ca.id !== u.id))
+      toast.success(`${u.name}님의 공동 관리자 권한이 제거되었습니다`)
+    } else {
+      const err = await res.json()
+      toast.error('제거 실패: ' + err.error)
+    }
+  }
+
+  async function handleSaveDelegate(newAdminId: string) {
+    setSavingDelegate(true)
+    const res = await fetch(`/api/tournaments/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_id: newAdminId }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setTournament(updated)
+      if (newAdminId !== currentUserId) {
+        const { data: adminProfile } = await supabase
+          .from('user_profiles').select('id, name, email, role').eq('id', newAdminId).single()
+        setCurrentAdmin(adminProfile as UserProfile)
+      } else {
+        setCurrentAdmin(null)
+      }
+      setSelectedDelegate(null)
+      setDelegateSearch('')
+      setDelegateResults([])
+      setShowDelegateResults(false)
+      toast.success('관리자 권한이 위임되었습니다')
+    } else {
+      const err = await res.json()
+      toast.error('위임 실패: ' + err.error)
+    }
+    setSavingDelegate(false)
   }
 
   function openPhaseEditor(divId: string) {
@@ -404,6 +529,154 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
           </div>
         </div>
       </form>
+
+      {/* 관리자 위임 섹션 — 대표 관리자(created_by/admin_id) 또는 system_admin에게 표시 */}
+      {currentUserId && (isSystemAdmin || tournament.created_by === currentUserId || tournament.admin_id === currentUserId) && (
+        <section className="glass rounded-2xl p-6 border border-white/10 space-y-5">
+          <div className="flex items-center gap-2">
+            <UserCog className="w-4 h-4 text-primary" />
+            <h2 className="font-semibold">관리자 위임</h2>
+          </div>
+
+          {/* 대표 관리자 — created_by / system_admin만 변경 가능 */}
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">대표 관리자</p>
+            <div className="flex items-center justify-between rounded-xl bg-white/5 px-4 py-3">
+              <div className="text-sm">
+                {currentAdmin
+                  ? <span className="font-medium text-accent">{currentAdmin.name} <span className="text-muted-foreground font-normal">({currentAdmin.email})</span></span>
+                  : <span className="font-medium">직접 관리 중</span>
+                }
+              </div>
+              {currentAdmin && (isSystemAdmin || tournament.created_by === currentUserId) && (
+                <button
+                  onClick={() => handleSaveDelegate(currentUserId!)}
+                  disabled={savingDelegate}
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                >
+                  <RotateCcw className="w-3 h-3" /> 권한 회수
+                </button>
+              )}
+            </div>
+
+            {(isSystemAdmin || tournament.created_by === currentUserId) && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground">다른 회원에게 위임</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                  <input
+                    type="text"
+                    value={delegateSearch}
+                    onChange={e => searchUsers(e.target.value)}
+                    onFocus={() => delegateResults.length > 0 && setShowDelegateResults(true)}
+                    onBlur={() => setTimeout(() => setShowDelegateResults(false), 150)}
+                    placeholder="이름 또는 이메일로 검색"
+                    className="w-full glass border border-white/10 rounded-xl pl-9 pr-4 py-2.5 text-sm bg-transparent outline-none focus:border-primary transition-colors"
+                  />
+                  {showDelegateResults && delegateResults.length > 0 && (
+                    <ul className="absolute z-10 mt-1 w-full glass border border-white/10 rounded-xl overflow-hidden shadow-lg">
+                      {delegateResults.map(u => (
+                        <li key={u.id}>
+                          <button
+                            type="button"
+                            onMouseDown={() => {
+                              setSelectedDelegate(u)
+                              setDelegateSearch(u.name)
+                              setShowDelegateResults(false)
+                            }}
+                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/10 transition-colors flex items-center justify-between"
+                          >
+                            <span>{u.name}</span>
+                            <span className="text-xs text-muted-foreground">{u.email}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                {selectedDelegate && (
+                  <div className="flex items-center justify-between rounded-xl border border-primary/30 bg-primary/5 px-4 py-2.5">
+                    <div className="text-sm">
+                      <span className="font-medium">{selectedDelegate.name}</span>
+                      <span className="text-muted-foreground ml-2 text-xs">{selectedDelegate.email}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleSaveDelegate(selectedDelegate.id)}
+                      disabled={savingDelegate}
+                      className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60"
+                    >
+                      <UserCog className="w-3 h-3" />
+                      {savingDelegate ? '처리 중...' : '위임하기'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 공동 관리자 — 대표 관리자 이상 조작 가능 */}
+          <div className="space-y-3 border-t border-white/10 pt-4">
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">공동 관리자</p>
+
+            {/* 현재 공동 관리자 칩 목록 */}
+            {coAdmins.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {coAdmins.map(ca => (
+                  <span key={ca.id} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium glass border border-white/10">
+                    {ca.name}
+                    <span className="text-muted-foreground">{ca.email}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCoAdmin(ca)}
+                      className="ml-0.5 text-muted-foreground hover:text-destructive transition-colors"
+                      title="제거"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">공동 관리자가 없습니다.</p>
+            )}
+
+            {/* 공동 관리자 추가 검색 */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              <input
+                type="text"
+                value={coAdminSearch}
+                onChange={e => searchCoAdminUsers(e.target.value)}
+                onFocus={() => coAdminResults.length > 0 && setShowCoAdminResults(true)}
+                onBlur={() => setTimeout(() => setShowCoAdminResults(false), 150)}
+                placeholder="이름 또는 이메일로 검색하여 추가"
+                disabled={addingCoAdmin}
+                className="w-full glass border border-white/10 rounded-xl pl-9 pr-4 py-2.5 text-sm bg-transparent outline-none focus:border-primary transition-colors disabled:opacity-50"
+              />
+              {showCoAdminResults && coAdminResults.length > 0 && (
+                <ul className="absolute z-10 mt-1 w-full glass border border-white/10 rounded-xl overflow-hidden shadow-lg">
+                  {coAdminResults.map(u => (
+                    <li key={u.id}>
+                      <button
+                        type="button"
+                        onMouseDown={() => handleAddCoAdmin(u)}
+                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/10 transition-colors flex items-center justify-between"
+                      >
+                        <span>{u.name}</span>
+                        <span className="text-xs text-muted-foreground">{u.email}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              공동 관리자는 대회 정보 수정, 선수/팀 관리, 경기 결과 입력이 가능합니다.
+            </p>
+          </div>
+        </section>
+      )}
 
       {/* Division Management */}
       <section className="glass rounded-2xl p-6 border border-white/10 space-y-4">
