@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Trophy, ArrowRight, Zap } from 'lucide-react'
+import { Trophy, ArrowRight } from 'lucide-react'
 import { createClientSafe } from '@/lib/supabase/server'
 import TournamentCard from '@/components/tournament/TournamentCard'
 import type { Tournament } from '@/lib/types'
@@ -29,21 +29,11 @@ export default async function HomePage() {
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-12">
       {/* Hero */}
-      <section className="text-center py-12 space-y-6">
-        <div className="inline-flex items-center gap-2 glass px-4 py-2 rounded-full text-sm text-primary font-medium mb-4">
-          <Zap className="w-4 h-4" />
-          탁구 대회 관리 플랫폼
-        </div>
-        <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight">
-          Smart Pingpong
-        </h1>
-    
-        <div className="flex items-center justify-center gap-3 flex-wrap">
-          <Link href="/tournaments"
-            className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-xl font-semibold hover:bg-primary/90 transition-colors">
-            대회 목록 보기 <ArrowRight className="w-4 h-4" />
-          </Link>
-        </div>
+      <section className="text-center py-6">
+        <Link href="/tournaments"
+          className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-xl font-semibold hover:bg-primary/90 transition-colors">
+          대회 목록 보기 <ArrowRight className="w-4 h-4" />
+        </Link>
       </section>
 
       {/* Active */}

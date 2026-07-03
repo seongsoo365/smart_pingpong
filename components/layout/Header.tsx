@@ -20,7 +20,7 @@ export default function Header() {
       <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2 font-bold text-lg">
           <Image src="/logo.png" alt="Smart Pingpong" width={32} height={32} className="rounded-lg" />
-          <span className="hidden sm:block">Smart Pingpong</span>
+          <span>Smart Pingpong</span>
         </Link>
 
         <nav className="hidden md:flex items-center gap-1">
