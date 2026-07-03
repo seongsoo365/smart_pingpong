@@ -41,7 +41,8 @@ smart_pingpong/
 │   │           └── divisions/[divId]/page.tsx  # 부수 상세 (예선 매트릭스, 본선 브라켓)
 │   ├── admin/                          # 보호된 관리자 페이지
 │   │   ├── layout.tsx                  # 인증 확인 + AdminSidebar + MobileBottomNav
-│   │   ├── page.tsx                    # 관리자 대시보드
+│   │   ├── page.tsx                    # 관리자 대시보드 (메인 Q&A 미답변 카운트 표시)
+│   │   ├── qna/page.tsx                # 메인 Q&A 관리 (미답변·답변완료 목록, 답변 저장, 공개/비공개 토글, 삭제)
 │   │   ├── system/users/               # system_admin 전용
 │   │   │   ├── page.tsx
 │   │   │   ├── AddAdminForm.tsx        # 관리자 계정 생성 폼
@@ -52,7 +53,7 @@ smart_pingpong/
 │   │       ├── registrations/page.tsx  # 온라인 접수 관리 (승인/거절)
 │   │       ├── draw/page.tsx           # 대진표 생성
 │   │       ├── scores/page.tsx         # 결과 입력 (세트별 점수, 승자 자동 진출)
-│   │       └── qna/page.tsx            # Q&A 관리
+│   │       └── qna/page.tsx            # 대회 Q&A 관리
 │   ├── api/
 │   │   ├── admin/
 │   │   │   ├── create-user/route.ts    # 관리자 계정 생성 (service_role 사용)
@@ -79,19 +80,20 @@ smart_pingpong/
 ├── components/
 │   ├── layout/
 │   │   ├── Header.tsx                  # 공개 페이지 헤더 (홈·대회 목록·게임 기록 등록·전적 조회)
-│   │   ├── AdminSidebar.tsx            # 관리자 데스크톱 사이드바 (대시보드·대회 등록·일회성 게임·사용자 관리)
+│   │   ├── AdminSidebar.tsx            # 관리자 데스크톱 사이드바 (대시보드·대회 등록·일회성 게임·Q&A 관리·사용자 관리)
 │   │   ├── MobileBottomNav.tsx         # 모바일 하단 네비 (홈·대회·게임·전적·관리)
 │   │   ├── SetupBanner.tsx             # Supabase 미설정 시 안내 배너
 │   │   └── ThemeToggle.tsx             # 다크/라이트 모드 토글 버튼
 │   ├── providers/
 │   │   └── ThemeProvider.tsx           # next-themes ThemeProvider 클라이언트 래퍼
+│   ├── MainQnaSection.tsx              # 홈 페이지용 메인 Q&A 공개 컴포넌트 (질문 목록 + 등록 폼, 비인증 허용)
 │   ├── tournament/
 │   │   ├── TournamentCard.tsx          # 대회 카드 (목록용)
 │   │   ├── BracketView.tsx             # 본선 브라켓 시각화
 │   │   ├── GroupMatrix.tsx             # 예선 전적 매트릭스
 │   │   ├── StandingsTable.tsx          # 조별 순위표
 │   │   ├── DivisionRealtimeContent.tsx # 부수 상세 실시간 구독 클라이언트 컴포넌트
-│   │   ├── QnaSection.tsx              # 공개 Q&A 섹션
+│   │   ├── QnaSection.tsx              # 대회 Q&A 공개 섹션
 │   │   ├── MyGameHistory.tsx           # 내가 등록한 일회성 게임 기록 목록 (localStorage 기반)
 │   │   └── MyRegistrationStatus.tsx    # 내 신청 내역 (localStorage 기반, 수정·취소 버튼 포함)
 │   └── ui/                             # shadcn 기본 컴포넌트
@@ -127,7 +129,10 @@ smart_pingpong/
 │   ├── 017_casual_games_public.sql     # casual_games INSERT RLS 공개 허용 (비인증 등록)
 │   ├── 018_phase_team_match_format.sql # tournament_phases.team_match_format 컬럼
 │   ├── 018_registration_self_edit.sql  # 미승인 신청자 본인 UPDATE/DELETE 허용 RLS
-│   └── 019_tournament_co_admins.sql    # tournament_admins 테이블 + is_tournament_admin() 함수 + RLS 전면 재작성
+│   ├── 019_tournament_co_admins.sql    # tournament_admins 테이블 + is_tournament_admin() 함수 + RLS 전면 재작성
+│   ├── 020_main_qna.sql                # main_questions 테이블 + RLS (공개 읽기/비인증 등록/system_admin 관리)
+│   ├── 021_drop_qna_email.sql          # tournament_questions.author_email 컬럼 제거
+│   └── 022_drop_main_qna_email.sql     # main_questions.author_email 컬럼 제거
 ├── proxy.ts                            # Next.js 16 middleware 대체 (세션 쿠키 갱신)
 └── CLAUDE.md / AGENTS.md / ARCHITECT.md / roadmap.md
 ```
@@ -161,6 +166,15 @@ casual_games (일회성 게임 — 대회 구조 독립)
   games_per_match, points_per_game, played_at, venue, notes,
   created_by(auth.users 참조, nullable), created_at
   RLS: 전체 공개 SELECT / INSERT 비인증 허용 / UPDATE·DELETE는 소유자·system_admin
+
+main_questions (메인 Q&A — 대회와 무관한 사이트 공통)
+  id, author_name, question, answer, answered_by(auth.users 참조, nullable),
+  answered_at, is_public(기본 TRUE), created_at
+  RLS: answer IS NOT NULL AND is_public=TRUE인 행만 공개 SELECT
+       INSERT 비인증 허용 (누구나 질문 가능)
+       system_admin만 SELECT 전체·UPDATE·DELETE 가능
+  - 홈 페이지 하단 MainQnaSection.tsx 에 공개 노출
+  - 관리자: /admin/qna 에서 답변·공개/비공개 토글·삭제
 ```
 
 ### 주요 타입 (lib/types/index.ts)
@@ -176,6 +190,7 @@ casual_games (일회성 게임 — 대회 구조 독립)
 | `TeamMatchFormat` | `'olympic' \| 'swaythling' \| ...` 6종 |
 | `TournamentAdmin` | `{ tournament_id, user_id, added_by?, added_at, user?: UserProfile }` |
 | `MyRegistration` | `{ id, type: 'player'\|'team', tournament_id }` — localStorage 저장용 |
+| `MainQuestion` | `{ id, author_name, question, answer?, answered_by?, answered_at?, is_public, created_at }` |
 
 ---
 
@@ -341,9 +356,12 @@ RESEND_API_KEY                  # (선택) 이메일 알림, 없으면 silent sk
 ## 마이그레이션 실행 순서
 
 Supabase SQL Editor에서 번호 순서대로 실행:
-`001 → 002 → 003 → 004 → 005 → 006 → 008 → 009 → 010 → 011 → 012 → 016 → 017 → 018_phase_team_match_format → 018_registration_self_edit → 019`
+`001 → 002 → 003 → 004 → 005 → 006 → 008 → 009 → 010 → 011 → 012 → 016 → 017 → 018_phase_team_match_format → 018_registration_self_edit → 019 → 020 → 021 → 022`
 
 > 007은 결번 (team_member_level은 009에 통합됨)  
 > 013·014·015는 소셜 로그인/비밀번호 관련 마이그레이션 (별도 실행됨)  
 > 018이 두 파일(phase_team_match_format, registration_self_edit)이므로 둘 다 실행 필요  
-> 019는 기존 RLS 정책을 DROP 후 재생성하므로 반드시 018 이후에 실행
+> 019는 기존 RLS 정책을 DROP 후 재생성하므로 반드시 018 이후에 실행  
+> 020은 main_questions 테이블 신규 생성  
+> 021은 tournament_questions.author_email 컬럼 제거 (020 이후 실행)  
+> 022는 main_questions.author_email 컬럼 제거 (021 이후 실행)

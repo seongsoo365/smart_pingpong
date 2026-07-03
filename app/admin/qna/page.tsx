@@ -1,44 +1,38 @@
 'use client'
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { ChevronLeft, MessageCircle, Send, Trash2, CheckCircle, Clock } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import type { TournamentQuestion } from '@/lib/types'
+import type { MainQuestion } from '@/lib/types'
 
-export default function QnaAdminPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
+export default function MainQnaAdminPage() {
   const supabase = createClient()
 
-  const [tournamentName, setTournamentName] = useState('')
-  const [questions, setQuestions] = useState<TournamentQuestion[]>([])
+  const [questions, setQuestions] = useState<MainQuestion[]>([])
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   async function load() {
     setLoading(true)
-    const [{ data: t }, { data: qs }] = await Promise.all([
-      supabase.from('tournaments').select('name').eq('id', id).single(),
-      supabase.from('tournament_questions')
-        .select('*')
-        .eq('tournament_id', id)
-        .order('created_at'),
-    ])
-    if (t?.name) setTournamentName(t.name)
-    setQuestions((qs ?? []) as TournamentQuestion[])
+    const { data } = await supabase
+      .from('main_questions')
+      .select('*')
+      .order('created_at')
+    setQuestions((data ?? []) as MainQuestion[])
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [id])
+  useEffect(() => { load() }, [])
 
-  async function saveAnswer(q: TournamentQuestion) {
+  async function saveAnswer(q: MainQuestion) {
     const text = answers[q.id]?.trim()
     if (!text) return
     setSaving(q.id)
     const { data: { user } } = await supabase.auth.getUser()
     const { error } = await supabase
-      .from('tournament_questions')
+      .from('main_questions')
       .update({
         answer: text,
         answered_by: user?.id ?? null,
@@ -52,17 +46,17 @@ export default function QnaAdminPage({ params }: { params: Promise<{ id: string 
     toast.success('답변이 저장되었습니다.')
   }
 
-  async function deleteQuestion(q: TournamentQuestion) {
+  async function deleteQuestion(q: MainQuestion) {
     if (!confirm(`"${q.question.slice(0, 30)}..." 질문을 삭제하시겠습니까?`)) return
-    const { error } = await supabase.from('tournament_questions').delete().eq('id', q.id)
+    const { error } = await supabase.from('main_questions').delete().eq('id', q.id)
     if (error) { toast.error('삭제 실패: ' + error.message); return }
     setQuestions(prev => prev.filter(x => x.id !== q.id))
     toast.success('질문이 삭제되었습니다.')
   }
 
-  async function togglePublic(q: TournamentQuestion) {
+  async function togglePublic(q: MainQuestion) {
     const { error } = await supabase
-      .from('tournament_questions')
+      .from('main_questions')
       .update({ is_public: !q.is_public })
       .eq('id', q.id)
     if (error) { toast.error('변경 실패: ' + error.message); return }
@@ -74,19 +68,19 @@ export default function QnaAdminPage({ params }: { params: Promise<{ id: string 
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
-      {/* Header */}
+      {/* 헤더 */}
       <div className="flex items-center gap-3">
-        <Link href={`/admin/tournaments/${id}/edit`}
+        <Link href="/admin"
           className="p-2 glass rounded-lg hover:bg-white/10 transition-colors">
           <ChevronLeft className="w-4 h-4" />
         </Link>
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2">
-            <MessageCircle className="w-5 h-5 text-primary" /> Q&amp;A 관리
+            <MessageCircle className="w-5 h-5 text-primary" /> 메인 Q&amp;A 관리
           </h1>
-          {tournamentName && <p className="text-xs text-muted-foreground">{tournamentName}</p>}
+          <p className="text-sm text-muted-foreground">사이트 공통 질문/답변</p>
         </div>
-        <div className="ml-auto flex gap-2 text-xs text-muted-foreground">
+        <div className="ml-auto flex gap-2 text-sm text-muted-foreground">
           <span className="flex items-center gap-1">
             <Clock className="w-3.5 h-3.5 text-accent" /> 미답변 {unanswered.length}
           </span>
@@ -104,7 +98,7 @@ export default function QnaAdminPage({ params }: { params: Promise<{ id: string 
         </div>
       ) : (
         <>
-          {/* Unanswered */}
+          {/* 미답변 */}
           {unanswered.length > 0 && (
             <section className="space-y-3">
               <h2 className="text-sm font-semibold text-accent flex items-center gap-1.5">
@@ -116,7 +110,7 @@ export default function QnaAdminPage({ params }: { params: Promise<{ id: string 
                     <span className="text-primary font-bold text-sm shrink-0 mt-0.5">Q.</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm">{q.question}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
+                      <p className="text-sm text-muted-foreground mt-1">
                         {q.author_name}
                         <span className="ml-2">{new Date(q.created_at).toLocaleDateString('ko-KR')}</span>
                       </p>
@@ -150,7 +144,7 @@ export default function QnaAdminPage({ params }: { params: Promise<{ id: string 
             </section>
           )}
 
-          {/* Answered */}
+          {/* 답변 완료 */}
           {answered.length > 0 && (
             <section className="space-y-3">
               <h2 className="text-sm font-semibold text-primary flex items-center gap-1.5">
@@ -162,7 +156,7 @@ export default function QnaAdminPage({ params }: { params: Promise<{ id: string 
                     <span className="text-primary font-bold text-sm shrink-0 mt-0.5">Q.</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm">{q.question}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
+                      <p className="text-sm text-muted-foreground mt-0.5">
                         {q.author_name}
                         <span className="ml-2">{new Date(q.created_at).toLocaleDateString('ko-KR')}</span>
                       </p>
@@ -170,7 +164,7 @@ export default function QnaAdminPage({ params }: { params: Promise<{ id: string 
                     <div className="flex items-center gap-1 shrink-0">
                       <button
                         onClick={() => togglePublic(q)}
-                        className={`text-xs px-2 py-1 rounded-lg transition-colors ${
+                        className={`text-sm px-2 py-1 rounded-lg transition-colors ${
                           q.is_public
                             ? 'bg-primary/15 text-primary hover:bg-primary/25'
                             : 'bg-white/5 text-muted-foreground hover:bg-white/10'
@@ -190,7 +184,7 @@ export default function QnaAdminPage({ params }: { params: Promise<{ id: string 
                       <p className="text-sm text-muted-foreground whitespace-pre-wrap">{q.answer}</p>
                     </div>
                     {q.answered_at && (
-                      <p className="text-xs text-muted-foreground/50 mt-2 ml-7">
+                      <p className="text-sm text-muted-foreground/50 mt-2 ml-7">
                         {new Date(q.answered_at).toLocaleString('ko-KR')}
                       </p>
                     )}

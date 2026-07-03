@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Plus, Trophy, ArrowRight } from 'lucide-react'
+import { Plus, Trophy, ArrowRight, MessageCircle, Clock } from 'lucide-react'
 import { createClientSafe } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import TournamentDashboardList from '@/components/admin/TournamentDashboardList'
@@ -39,6 +39,11 @@ export default async function AdminDashboard() {
     completed:   tournaments?.filter(t => t.status === 'completed').length ?? 0,
   }
 
+  const { count: unansweredQnaCount } = await supabase
+    .from('main_questions')
+    .select('*', { count: 'exact', head: true })
+    .is('answer', null)
+
   return (
     <div className="max-w-5xl mx-auto space-y-8">
       <div className="flex items-center justify-between">
@@ -65,6 +70,30 @@ export default async function AdminDashboard() {
           </div>
         ))}
       </div>
+
+      {/* 메인 Q&A */}
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-bold text-lg flex items-center gap-2">
+            <MessageCircle className="w-5 h-5 text-primary" /> 메인 Q&amp;A
+          </h2>
+        </div>
+        <Link
+          href="/admin/qna"
+          className="glass rounded-xl border border-white/10 p-4 flex items-center justify-between hover:bg-white/5 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <span className="font-medium">Q&amp;A 관리하기</span>
+            {(unansweredQnaCount ?? 0) > 0 && (
+              <span className="flex items-center gap-1 text-sm text-accent font-semibold">
+                <Clock className="w-3.5 h-3.5" />
+                미답변 {unansweredQnaCount}개
+              </span>
+            )}
+          </div>
+          <ArrowRight className="w-4 h-4 text-muted-foreground" />
+        </Link>
+      </section>
 
       <section>
         <div className="flex items-center justify-between mb-4">

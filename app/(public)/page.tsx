@@ -2,7 +2,8 @@ import Link from 'next/link'
 import { Trophy, ArrowRight } from 'lucide-react'
 import { createClientSafe } from '@/lib/supabase/server'
 import TournamentCard from '@/components/tournament/TournamentCard'
-import type { Tournament } from '@/lib/types'
+import MainQnaSection from '@/components/MainQnaSection'
+import type { Tournament, MainQuestion } from '@/lib/types'
 
 export default async function HomePage() {
   const supabase = await createClientSafe()
@@ -10,9 +11,10 @@ export default async function HomePage() {
   const activeTournaments: Tournament[] = []
   const recentTournaments: Tournament[] = []
   const draftTournaments: Tournament[] = []
+  let mainQuestions: MainQuestion[] = []
 
   if (supabase) {
-    const [{ data: active }, { data: recent }, { data: drafts }] = await Promise.all([
+    const [{ data: active }, { data: recent }, { data: drafts }, { data: qna }] = await Promise.all([
       supabase.from('tournaments').select('*').in('status', ['registration', 'in_progress'])
         .order('start_date', { ascending: true }).limit(6),
       supabase.from('tournaments').select('*').eq('status', 'completed')
@@ -20,10 +22,15 @@ export default async function HomePage() {
         .order('end_date', { ascending: false }).limit(4),
       supabase.from('tournaments').select('*').eq('status', 'draft')
         .order('start_date', { ascending: true, nullsFirst: false }).limit(6),
+      supabase.from('main_questions').select('*')
+        .not('answer', 'is', null)
+        .eq('is_public', true)
+        .order('created_at'),
     ])
     activeTournaments.push(...(active ?? []))
     recentTournaments.push(...(recent ?? []))
     draftTournaments.push(...(drafts ?? []))
+    mainQuestions = (qna ?? []) as MainQuestion[]
   }
 
   return (
@@ -93,6 +100,13 @@ export default async function HomePage() {
           <p className="text-lg font-medium">아직 등록된 대회가 없습니다</p>
           <p className="text-sm mt-1">관리자 로그인 후 첫 대회를 등록해보세요</p>
         </div>
+      )}
+
+      {/* 메인 Q&A */}
+      {supabase && (
+        <section className="border-t border-white/10 pt-10">
+          <MainQnaSection initialQuestions={mainQuestions} />
+        </section>
       )}
     </div>
   )

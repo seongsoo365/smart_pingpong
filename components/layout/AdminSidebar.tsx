@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Trophy, LayoutDashboard, LogOut, Shield, Gamepad2 } from 'lucide-react'
+import { Trophy, LayoutDashboard, LogOut, Shield, Gamepad2, MessageCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -11,6 +11,7 @@ const navItems = [
   { href: '/admin',                 icon: LayoutDashboard, label: '대시보드',    exact: true },
   { href: '/admin/tournaments/new', icon: Trophy,          label: '대회 등록' },
   { href: '/admin/games',           icon: Gamepad2,        label: '일회성 게임' },
+  { href: '/admin/qna',             icon: MessageCircle,   label: 'Q&A 관리' },
   { href: '/admin/system/users',    icon: Shield,          label: '사용자 관리' },
 ]
 

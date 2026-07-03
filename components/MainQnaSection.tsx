@@ -3,15 +3,13 @@ import { useState } from 'react'
 import { MessageCircle, ChevronDown, ChevronUp, Send } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import type { TournamentQuestion } from '@/lib/types'
+import type { MainQuestion } from '@/lib/types'
 
 interface Props {
-  tournamentId: string
-  initialQuestions: TournamentQuestion[]
-  hideTitle?: boolean
+  initialQuestions: MainQuestion[]
 }
 
-export default function QnaSection({ tournamentId, initialQuestions, hideTitle = false }: Props) {
+export default function MainQnaSection({ initialQuestions }: Props) {
   const supabase = createClient()
   const [questions, setQuestions] = useState(initialQuestions)
   const [expanded, setExpanded] = useState<string | null>(null)
@@ -23,8 +21,7 @@ export default function QnaSection({ tournamentId, initialQuestions, hideTitle =
     e.preventDefault()
     if (!form.name.trim() || !form.question.trim()) return
     setSubmitting(true)
-    const { error } = await supabase.from('tournament_questions').insert({
-      tournament_id: tournamentId,
+    const { error } = await supabase.from('main_questions').insert({
       author_name: form.name.trim(),
       question: form.question.trim(),
     })
@@ -37,13 +34,11 @@ export default function QnaSection({ tournamentId, initialQuestions, hideTitle =
 
   return (
     <section className="space-y-5">
-      {!hideTitle && (
-        <h2 className="text-lg font-bold flex items-center gap-2">
-          <MessageCircle className="w-5 h-5 text-primary" /> Q&amp;A
-        </h2>
-      )}
+      <h2 className="text-xl font-bold flex items-center gap-2">
+        <MessageCircle className="w-5 h-5 text-primary" /> Q&amp;A
+      </h2>
 
-      {/* Answered questions */}
+      {/* 답변된 질문 목록 */}
       {questions.length > 0 ? (
         <div className="space-y-2">
           {questions.map(q => (
@@ -73,16 +68,16 @@ export default function QnaSection({ tournamentId, initialQuestions, hideTitle =
         <p className="text-sm text-muted-foreground">아직 답변된 질문이 없습니다.</p>
       )}
 
-      {/* Submit form */}
+      {/* 질문 등록 폼 */}
       <div className="glass rounded-xl border border-white/10 p-5">
         <p className="text-sm font-medium mb-4">질문하기</p>
         {submitted ? (
           <div className="text-center py-4 space-y-2">
             <p className="text-sm text-muted-foreground">질문이 등록되었습니다.</p>
-            <p className="text-xs text-muted-foreground/70">관리자 검토 후 답변이 공개됩니다.</p>
+            <p className="text-sm text-muted-foreground">관리자 검토 후 답변이 공개됩니다.</p>
             <button
               onClick={() => setSubmitted(false)}
-              className="text-xs text-primary hover:underline mt-1"
+              className="text-sm text-primary hover:underline mt-1"
             >
               추가 질문하기
             </button>

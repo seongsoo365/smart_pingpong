@@ -52,6 +52,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 - `app/admin/games/` — 일회성 게임 관리 (목록, 등록/수정/삭제)
 - `app/auth/login/` — 로그인 페이지
 - `app/(public)/tournaments/[id]/my-registration/` — 신청 정보 수정 페이지 (미승인 상태일 때만 접근 가능, 이름·부수 변경)
+- `app/admin/qna/` — 메인 Q&A 관리 페이지 (미답변·답변완료 목록, 답변 저장, 공개/비공개 토글, 삭제)
 - `app/api/` — API 라우트: `/admin/create-user`, `/tournaments/[id]`, `/tournaments/[id]/admins`(공동 관리자 GET/POST), `/tournaments/[id]/admins/[userId]`(공동 관리자 DELETE), `/divisions`, `/divisions/[id]`, `/games`(GET `?ids=` 파라미터로 특정 ID 필터 지원), `/games/[id]`, `/players/records`, `/players/search`
 
 ### Supabase 클라이언트 패턴
@@ -86,12 +87,24 @@ API 라우트는 수동으로 소유권을 확인합니다 — 관리자 라우�
 
 ### Q&A 데이터 모델
 
-`tournament_questions` 테이블은 대회(tournament)에 직접 연결됩니다 (부수와 무관).
+#### 대회 Q&A (`tournament_questions`)
+
+대회에 직접 연결됩니다 (부수와 무관). 이메일 필드 없음.
 
 - **공개 방문자**: `answer IS NOT NULL AND is_public = TRUE` 인 행만 SELECT, INSERT는 누구나 가능
 - **대회 소유자(admin_id / created_by)**: 전체 SELECT, UPDATE(답변 저장), DELETE 가능
 - 관리자 페이지(`app/admin/tournaments/[id]/qna/page.tsx`)에서 답변 저장 시 `answered_by`(auth.uid), `answered_at`도 함께 저장
 - 공개 컴포넌트: `components/tournament/QnaSection.tsx` (클라이언트 컴포넌트, 공개 대회 상세 페이지에 임베드)
+
+#### 메인 Q&A (`main_questions`)
+
+대회와 무관한 사이트 공통 Q&A. 마이그레이션: `020_main_qna.sql`, `022_drop_main_qna_email.sql`.
+
+- **공개 방문자**: `answer IS NOT NULL AND is_public = TRUE` 인 행만 SELECT, INSERT 비인증 허용
+- **system_admin 전용**: 전체 SELECT, UPDATE(답변 저장 + is_public 토글), DELETE 가능
+- 관리자 페이지: `app/admin/qna/page.tsx` (미답변·답변완료 목록, 답변 저장, 공개/비공개 토글, 삭제)
+- 공개 컴포넌트: `components/MainQnaSection.tsx` (클라이언트 컴포넌트, 홈 페이지 하단 임베드)
+- AdminSidebar에 "Q&A 관리" 메뉴 항목 추가 완료, 대시보드에 미답변 카운트 표시
 
 ### 대회 데이터 모델
 
@@ -149,6 +162,7 @@ tournament (대회)
 
 - `components/ui/` — shadcn 스타일 기본 컴포넌트 (Button, Card, Badge, Tabs, Dialog 등)
 - `components/layout/` — `Header`, `AdminSidebar`, `MobileBottomNav`, `SetupBanner`
+- `components/MainQnaSection.tsx` — 홈 페이지용 메인 Q&A (질문 목록 + 등록 폼, 비인증 허용, `main_questions` 테이블)
 - `components/tournament/` — `TournamentCard`, `StandingsTable`, `BracketView`, `GroupMatrix`, `QnaSection`, `MyGameHistory`(내가 등록한 일회성 게임 목록, localStorage 기반), `MyRegistrationStatus`(내 신청 내역 표시 + 수정/취소 버튼, 대회 상세 페이지에 임베드)
 
 ### UI 규칙
