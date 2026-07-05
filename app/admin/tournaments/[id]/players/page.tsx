@@ -97,8 +97,8 @@ export default function PlayersPage() {
 
       {selectedDiv && (
         isTeam
-          ? <TeamSection supabase={supabase} div={selectedDiv} />
-          : <IndividualSection supabase={supabase} divId={selectedDivId} />
+          ? <TeamSection supabase={supabase} div={selectedDiv} divisions={divisions} />
+          : <IndividualSection supabase={supabase} divId={selectedDivId} divisions={divisions} />
       )}
     </div>
   )
@@ -106,7 +106,9 @@ export default function PlayersPage() {
 
 // ─── 개인전 섹션 ─────────────────────────────────────────────────────────────
 
-function IndividualSection({ supabase, divId }: { supabase: ReturnType<typeof createClient>; divId: string }) {
+function IndividualSection({ supabase, divId, divisions }: { supabase: ReturnType<typeof createClient>; divId: string; divisions: Division[] }) {
+  const individualDivisions = useMemo(() => divisions.filter(d => d.match_type === 'individual'), [divisions])
+
   const [players, setPlayers] = useState<Player[]>([])
   const [newName, setNewName] = useState('')
   const [newClub, setNewClub] = useState('')
@@ -114,6 +116,7 @@ function IndividualSection({ supabase, divId }: { supabase: ReturnType<typeof cr
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [editClub, setEditClub] = useState('')
+  const [editDivisionId, setEditDivisionId] = useState('')
   const [showBulk, setShowBulk] = useState(false)
   const [bulkText, setBulkText] = useState('')
   const [bulkLoading, setBulkLoading] = useState(false)
@@ -154,19 +157,24 @@ function IndividualSection({ supabase, divId }: { supabase: ReturnType<typeof cr
   }
 
   function startEdit(p: Player) {
-    setEditingId(p.id); setEditName(p.name); setEditClub(p.club ?? '')
+    setEditingId(p.id); setEditName(p.name); setEditClub(p.club ?? ''); setEditDivisionId(p.division_id)
   }
 
   async function savePlayer(e: React.FormEvent) {
     e.preventDefault()
     if (!editingId || !editName.trim()) return
     const { data, error } = await supabase
-      .from('players').update({ name: editName.trim(), club: editClub.trim() || null })
+      .from('players').update({ name: editName.trim(), club: editClub.trim() || null, division_id: editDivisionId })
       .eq('id', editingId).select().single()
     if (error) { toast.error('수정 실패: ' + error.message); return }
-    setPlayers(prev => prev.map(p => p.id === editingId ? data : p))
+    if (editDivisionId !== divId) {
+      setPlayers(prev => prev.filter(p => p.id !== editingId))
+      toast.success('선수 정보가 수정되었고 다른 부수로 이동했습니다')
+    } else {
+      setPlayers(prev => prev.map(p => p.id === editingId ? data : p))
+      toast.success('선수 정보가 수정되었습니다')
+    }
     setEditingId(null)
-    toast.success('선수 정보가 수정되었습니다')
   }
 
   async function addBulk() {
@@ -207,23 +215,36 @@ function IndividualSection({ supabase, divId }: { supabase: ReturnType<typeof cr
             {players.map((p, i) => (
               <div key={p.id} className="rounded-xl bg-white/5 px-4 py-3">
                 {editingId === p.id ? (
-                  <form onSubmit={savePlayer} className="flex items-center gap-2 flex-wrap">
-                    <span className="text-muted-foreground text-sm w-5 shrink-0">{i + 1}</span>
-                    <input required value={editName} onChange={e => setEditName(e.target.value)}
-                      placeholder="선수명 *"
-                      className="flex-1 min-w-24 glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary" />
-                    <input value={editClub} onChange={e => setEditClub(e.target.value)}
-                      placeholder="소속"
-                      className="flex-1 min-w-24 glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary" />
-                    <div className="flex gap-1.5 shrink-0">
-                      <button type="submit"
-                        className="p-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors">
-                        <Check className="w-3.5 h-3.5" />
-                      </button>
-                      <button type="button" onClick={() => setEditingId(null)}
-                        className="p-2 glass border border-white/10 rounded-lg hover:bg-white/10 transition-colors">
-                        <X className="w-3.5 h-3.5" />
-                      </button>
+                  <form onSubmit={savePlayer} className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-muted-foreground text-sm w-5 shrink-0">{i + 1}</span>
+                      <input required value={editName} onChange={e => setEditName(e.target.value)}
+                        placeholder="선수명 *"
+                        className="flex-1 min-w-24 glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary" />
+                      <input value={editClub} onChange={e => setEditClub(e.target.value)}
+                        placeholder="소속"
+                        className="flex-1 min-w-24 glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary" />
+                    </div>
+                    <div className="flex items-center gap-2 pl-7">
+                      <span className="text-xs text-muted-foreground shrink-0">부수</span>
+                      <select value={editDivisionId} onChange={e => setEditDivisionId(e.target.value)}
+                        className="flex-1 glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary">
+                        {individualDivisions.map(d => (
+                          <option key={d.id} value={d.id} className="bg-background">
+                            {genderLabel[d.gender]} {d.name}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="flex gap-1.5 shrink-0">
+                        <button type="submit"
+                          className="p-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors">
+                          <Check className="w-3.5 h-3.5" />
+                        </button>
+                        <button type="button" onClick={() => setEditingId(null)}
+                          className="p-2 glass border border-white/10 rounded-lg hover:bg-white/10 transition-colors">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </form>
                 ) : (
@@ -364,13 +385,15 @@ interface MemberInput { name: string; level: number | '' }
 
 const emptyMember = (): MemberInput => ({ name: '', level: '' })
 
-function TeamSection({ supabase, div }: { supabase: ReturnType<typeof createClient>; div: Division }) {
+function TeamSection({ supabase, div, divisions }: { supabase: ReturnType<typeof createClient>; div: Division; divisions: Division[] }) {
   const teamSize = getTeamSize(div.team_match_format)
+  const teamDivisions = useMemo(() => divisions.filter(d => d.match_type === 'team'), [divisions])
 
   const [teams, setTeams] = useState<TeamWithMembers[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [editClub, setEditClub] = useState('')
+  const [editDivisionId, setEditDivisionId] = useState('')
   const [editMembers, setEditMembers] = useState<MemberInput[]>([])
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
@@ -445,6 +468,7 @@ function TeamSection({ supabase, div }: { supabase: ReturnType<typeof createClie
     setEditingId(team.id)
     setEditName(team.name)
     setEditClub(team.club ?? '')
+    setEditDivisionId(team.division_id)
     const sorted = [...(team.members ?? [])].sort((a, b) => a.player_order - b.player_order)
     setEditMembers(sorted.map(m => ({ name: m.player_name, level: m.player_level ?? '' })))
     setExpandedId(team.id)
@@ -459,7 +483,7 @@ function TeamSection({ supabase, div }: { supabase: ReturnType<typeof createClie
     }
 
     const { error: tErr } = await supabase
-      .from('teams').update({ name: editName.trim(), club: editClub.trim() || null })
+      .from('teams').update({ name: editName.trim(), club: editClub.trim() || null, division_id: editDivisionId })
       .eq('id', editingId)
     if (tErr) { toast.error('수정 실패: ' + tErr.message); return }
 
@@ -471,7 +495,11 @@ function TeamSection({ supabase, div }: { supabase: ReturnType<typeof createClie
     const { error: mErr } = await supabase.from('team_members').insert(memberRows)
     if (mErr) { toast.error('선수 수정 실패: ' + mErr.message); return }
 
-    toast.success('팀 정보가 수정되었습니다')
+    if (editDivisionId !== div.id) {
+      toast.success('팀 정보가 수정되었고 다른 부수로 이동했습니다')
+    } else {
+      toast.success('팀 정보가 수정되었습니다')
+    }
     setEditingId(null)
     await loadTeams()
   }
@@ -536,6 +564,17 @@ function TeamSection({ supabase, div }: { supabase: ReturnType<typeof createClie
                       <input value={editClub} onChange={e => setEditClub(e.target.value)}
                         placeholder="소속"
                         className="flex-1 min-w-32 glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground shrink-0">부수</span>
+                      <select value={editDivisionId} onChange={e => setEditDivisionId(e.target.value)}
+                        className="flex-1 glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary">
+                        {teamDivisions.map(d => (
+                          <option key={d.id} value={d.id} className="bg-background">
+                            {genderLabel[d.gender]} {d.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div className="space-y-1.5">
                       <p className="text-xs text-muted-foreground">선수 명단</p>
