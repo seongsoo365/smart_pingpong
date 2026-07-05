@@ -10,6 +10,7 @@ const navLinks = [
   { href: '/tournaments', label: '대회 목록' },
   { href: '/games/new',   label: '게임 기록 등록' },
   { href: '/players',     label: '전적 조회' },
+  { href: '/rankings',    label: '랭킹' },
 ]
 
 export default function Header() {

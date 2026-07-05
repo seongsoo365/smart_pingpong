@@ -221,3 +221,20 @@ export interface TournamentWithDivisions extends Tournament {
     merges?: DivisionMerge[]
   })[]
 }
+
+export interface PlayerRanking {
+  rank: number
+  name: string
+  club: string | null
+  total_points: number
+  total_wins: number
+  total_games: number
+  breakdown: { casual: number; preliminary: number; main: number }
+}
+
+export interface RatingBreakdown {
+  casual: number
+  preliminary: number
+  main: number
+  total: number
+}

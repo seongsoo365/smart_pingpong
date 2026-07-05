@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Trophy, Gamepad2, Users, Settings } from 'lucide-react'
+import { Home, Trophy, Gamepad2, Users, Medal, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
@@ -9,6 +9,7 @@ const navItems = [
   { href: '/tournaments',  icon: Trophy,    label: '대회' },
   { href: '/games/new',    icon: Gamepad2,  label: '게임' },
   { href: '/players',      icon: Users,     label: '전적' },
+  { href: '/rankings',     icon: Medal,     label: '랭킹' },
   { href: '/admin',        icon: Settings,  label: '관리' },
 ]
 

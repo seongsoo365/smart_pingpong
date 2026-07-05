@@ -1,5 +1,6 @@
 import { createClientSafe } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { getMatchRatingPoints } from '@/lib/utils/rating'
 
 export async function GET(req: NextRequest) {
   const idsParam = req.nextUrl.searchParams.get('ids') ?? ''
@@ -26,18 +27,22 @@ export async function GET(req: NextRequest) {
 
   type MatchRecord = {
     id: string
+    phase_id: string | null
     tournament_id: string | null
     tournament_name: string
     tournament_start: string | null
     division_name: string
     phase_type: string
+    format: string
     round: number
+    total_rounds: number
     opponent_id: string | null
     opponent_name: string
     opponent_club?: string
     my_score: number
     opp_score: number
     won: boolean
+    points_earned: number
     sets: { set_number: number; my_score: number; opp_score: number }[]
   }
 
@@ -61,7 +66,7 @@ export async function GET(req: NextRequest) {
     const { data: matches, error: matchError } = await supabase
       .from('matches')
       .select(`
-        id, round, match_number, participant1_id, participant2_id,
+        id, phase_id, round, match_number, participant1_id, participant2_id,
         score1, score2, winner_id, status, participant1_type,
         match_sets(set_number, score1, score2),
         tournament_phases(
@@ -76,6 +81,14 @@ export async function GET(req: NextRequest) {
       .eq('participant1_type', 'player')
 
     if (matchError) return NextResponse.json({ error: matchError.message }, { status: 500 })
+
+    // phase별 max(round) 계산
+    const phaseMaxRound = new Map<string, number>()
+    for (const m of matches ?? []) {
+      if (!m.phase_id) continue
+      const prev = phaseMaxRound.get(m.phase_id) ?? 0
+      phaseMaxRound.set(m.phase_id, Math.max(prev, m.round))
+    }
 
     const opponentIds = [
       ...new Set(
@@ -116,21 +129,34 @@ export async function GET(req: NextRequest) {
       } | null
       const division = phase?.divisions
       const tournament = division?.tournaments
+      const phaseType = (phase?.phase_type ?? 'main') as 'preliminary' | 'main'
+      const totalRounds = m.phase_id ? (phaseMaxRound.get(m.phase_id) ?? m.round) : m.round
+      const pointsEarned = getMatchRatingPoints({
+        phase_type: phaseType,
+        format: phase?.format ?? 'single_elimination',
+        round: m.round,
+        total_rounds: totalRounds,
+        won,
+      })
 
       matchRecords.push({
         id: m.id,
+        phase_id: m.phase_id ?? null,
         tournament_id: tournament?.id ?? null,
         tournament_name: tournament?.name ?? '(알 수 없음)',
         tournament_start: tournament?.start_date ?? null,
         division_name: division?.name ?? '(알 수 없음)',
-        phase_type: phase?.phase_type ?? 'main',
+        phase_type: phaseType,
+        format: phase?.format ?? 'single_elimination',
         round: m.round,
+        total_rounds: totalRounds,
         opponent_id: opponentId ?? null,
         opponent_name: opponent?.name ?? '(상대 미상)',
         opponent_club: opponent?.club ?? undefined,
         my_score: myScore,
         opp_score: oppScore,
         won,
+        points_earned: pointsEarned,
         sets,
       })
     }
@@ -178,18 +204,22 @@ export async function GET(req: NextRequest) {
 
       matchRecords.push({
         id: g.id,
+        phase_id: null,
         tournament_id: null,
         tournament_name: '일회성 게임',
         tournament_start: g.played_at,
         division_name: g.venue ?? '',
         phase_type: 'casual',
+        format: 'casual',
         round: 0,
+        total_rounds: 0,
         opponent_id: null,
         opponent_name: isP1 ? g.player2_name : g.player1_name,
         opponent_club: (isP1 ? g.player2_club : g.player1_club) ?? undefined,
         my_score: myScore,
         opp_score: oppScore,
         won,
+        points_earned: won ? 10 : 0,
         sets,
       })
     }
@@ -233,10 +263,19 @@ export async function GET(req: NextRequest) {
 
   const h2h = [...h2hMap.values()].sort((a, b) => (b.wins + b.losses) - (a.wins + a.losses))
 
+  const totalPoints = matchRecords.reduce((s, m) => s + m.points_earned, 0)
+  const breakdown = {
+    casual: matchRecords.filter(m => m.phase_type === 'casual').reduce((s, m) => s + m.points_earned, 0),
+    preliminary: matchRecords.filter(m => m.phase_type === 'preliminary').reduce((s, m) => s + m.points_earned, 0),
+    main: matchRecords.filter(m => m.phase_type === 'main').reduce((s, m) => s + m.points_earned, 0),
+  }
+
   return NextResponse.json({
     player: playerInfo,
     total_wins: matchRecords.filter(m => m.won).length,
     total_losses: matchRecords.filter(m => !m.won).length,
+    rating_points: totalPoints,
+    rating_breakdown: breakdown,
     h2h,
     matches: matchRecords,
   })
