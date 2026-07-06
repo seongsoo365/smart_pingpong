@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { Plus, Trash2, ChevronLeft, Pencil, Check, X, Clock, ClipboardList, ChevronDown, ChevronUp, AlertTriangle, Users } from 'lucide-react'
+import { Plus, Trash2, ChevronLeft, Pencil, Check, X, Clock, ClipboardList, ChevronDown, ChevronUp, AlertTriangle, Users, StickyNote } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { Division, Player, Team, TeamMember, TeamMatchFormat } from '@/lib/types'
@@ -117,6 +117,7 @@ function IndividualSection({ supabase, divId, divisions }: { supabase: ReturnTyp
   const [editName, setEditName] = useState('')
   const [editClub, setEditClub] = useState('')
   const [editDivisionId, setEditDivisionId] = useState('')
+  const [editMemo, setEditMemo] = useState('')
   const [showBulk, setShowBulk] = useState(false)
   const [bulkText, setBulkText] = useState('')
   const [bulkLoading, setBulkLoading] = useState(false)
@@ -157,14 +158,14 @@ function IndividualSection({ supabase, divId, divisions }: { supabase: ReturnTyp
   }
 
   function startEdit(p: Player) {
-    setEditingId(p.id); setEditName(p.name); setEditClub(p.club ?? ''); setEditDivisionId(p.division_id)
+    setEditingId(p.id); setEditName(p.name); setEditClub(p.club ?? ''); setEditDivisionId(p.division_id); setEditMemo(p.memo ?? '')
   }
 
   async function savePlayer(e: React.FormEvent) {
     e.preventDefault()
     if (!editingId || !editName.trim()) return
     const { data, error } = await supabase
-      .from('players').update({ name: editName.trim(), club: editClub.trim() || null, division_id: editDivisionId })
+      .from('players').update({ name: editName.trim(), club: editClub.trim() || null, division_id: editDivisionId, memo: editMemo.trim() || null })
       .eq('id', editingId).select().single()
     if (error) { toast.error('수정 실패: ' + error.message); return }
     if (editDivisionId !== divId) {
@@ -246,6 +247,11 @@ function IndividualSection({ supabase, divId, divisions }: { supabase: ReturnTyp
                         </button>
                       </div>
                     </div>
+                    <div className="pl-7">
+                      <textarea value={editMemo} onChange={e => setEditMemo(e.target.value)}
+                        placeholder="관리자 메모 (참가자에게 노출되지 않음)" rows={2}
+                        className="w-full glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary resize-y" />
+                    </div>
                   </form>
                 ) : (
                   <div className="flex items-center gap-3">
@@ -261,6 +267,12 @@ function IndividualSection({ supabase, divId, divisions }: { supabase: ReturnTyp
                       </div>
                       {p.club && <div className="text-xs text-muted-foreground">{p.club}</div>}
                       {p.phone && <div className="text-xs text-muted-foreground">{p.phone}</div>}
+                      {p.memo && (
+                        <div className="flex items-start gap-1 text-xs text-accent/90 mt-0.5">
+                          <StickyNote className="w-3 h-3 shrink-0 mt-0.5" />
+                          <span className="whitespace-pre-wrap break-words">{p.memo}</span>
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {!p.confirmed && (
@@ -394,6 +406,7 @@ function TeamSection({ supabase, div, divisions }: { supabase: ReturnType<typeof
   const [editName, setEditName] = useState('')
   const [editClub, setEditClub] = useState('')
   const [editDivisionId, setEditDivisionId] = useState('')
+  const [editMemo, setEditMemo] = useState('')
   const [editMembers, setEditMembers] = useState<MemberInput[]>([])
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
@@ -469,6 +482,7 @@ function TeamSection({ supabase, div, divisions }: { supabase: ReturnType<typeof
     setEditName(team.name)
     setEditClub(team.club ?? '')
     setEditDivisionId(team.division_id)
+    setEditMemo(team.memo ?? '')
     const sorted = [...(team.members ?? [])].sort((a, b) => a.player_order - b.player_order)
     setEditMembers(sorted.map(m => ({ name: m.player_name, level: m.player_level ?? '' })))
     setExpandedId(team.id)
@@ -483,7 +497,7 @@ function TeamSection({ supabase, div, divisions }: { supabase: ReturnType<typeof
     }
 
     const { error: tErr } = await supabase
-      .from('teams').update({ name: editName.trim(), club: editClub.trim() || null, division_id: editDivisionId })
+      .from('teams').update({ name: editName.trim(), club: editClub.trim() || null, division_id: editDivisionId, memo: editMemo.trim() || null })
       .eq('id', editingId)
     if (tErr) { toast.error('수정 실패: ' + tErr.message); return }
 
@@ -605,6 +619,9 @@ function TeamSection({ supabase, div, divisions }: { supabase: ReturnType<typeof
                         </button>
                       )}
                     </div>
+                    <textarea value={editMemo} onChange={e => setEditMemo(e.target.value)}
+                      placeholder="관리자 메모 (참가자에게 노출되지 않음)" rows={2}
+                      className="w-full glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary resize-y" />
                     <div className="flex gap-2">
                       <button type="submit"
                         className="flex-1 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
@@ -638,6 +655,12 @@ function TeamSection({ supabase, div, divisions }: { supabase: ReturnType<typeof
                           </span>
                         </div>
                         {team.club && <div className="text-xs text-muted-foreground">{team.club}</div>}
+                        {team.memo && (
+                          <div className="flex items-start gap-1 text-xs text-accent/90 mt-0.5">
+                            <StickyNote className="w-3 h-3 shrink-0 mt-0.5" />
+                            <span className="whitespace-pre-wrap break-words">{team.memo}</span>
+                          </div>
+                        )}
                       </button>
                       <div className="flex items-center gap-2 shrink-0">
                         {!team.confirmed && (

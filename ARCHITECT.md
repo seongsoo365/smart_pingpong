@@ -356,7 +356,7 @@ RESEND_API_KEY                  # (선택) 이메일 알림, 없으면 silent sk
 ## 마이그레이션 실행 순서
 
 Supabase SQL Editor에서 번호 순서대로 실행:
-`001 → 002 → 003 → 004 → 005 → 006 → 008 → 009 → 010 → 011 → 012 → 016 → 017 → 018_phase_team_match_format → 018_registration_self_edit → 019 → 020 → 021 → 022 → 023`
+`001 → 002 → 003 → 004 → 005 → 006 → 008 → 009 → 010 → 011 → 012 → 016 → 017 → 018_phase_team_match_format → 018_registration_self_edit → 019 → 020 → 021 → 022 → 023 → 024`
 
 > 007은 결번 (team_member_level은 009에 통합됨)  
 > 013·014·015는 소셜 로그인/비밀번호 관련 마이그레이션 (별도 실행됨)  
@@ -365,4 +365,5 @@ Supabase SQL Editor에서 번호 순서대로 실행:
 > 020은 main_questions 테이블 신규 생성  
 > 021은 tournament_questions.author_email 컬럼 제거 (020 이후 실행)  
 > 022는 main_questions.author_email 컬럼 제거 (021 이후 실행)  
-> 023은 tournament_phases.ranking_method 컬럼 추가 (예선 순위 결정 기준: 승수 우선/세트 득실 우선, 기본값 wins_first)
+> 023은 tournament_phases.ranking_method 컬럼 추가 (예선 순위 결정 기준: 승수 우선/세트 득실 우선, 기본값 wins_first)  
+> 024는 players/teams.memo 컬럼 추가 (관리자 전용 신청자 메모, 단체전은 팀 단위)

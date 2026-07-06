@@ -96,6 +96,7 @@ export interface Player {
   seed?: number
   group_id?: string
   confirmed: boolean
+  memo?: string
   created_at: string
   division?: Division
   group?: Group
@@ -110,6 +111,7 @@ export interface Team {
   seed?: number
   group_id?: string
   confirmed: boolean
+  memo?: string
   created_at?: string
   members?: TeamMember[]
 }
