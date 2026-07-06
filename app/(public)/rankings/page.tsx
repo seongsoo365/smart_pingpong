@@ -202,7 +202,7 @@ export default async function RankingsPage({
       ) : (
         <div className="glass rounded-2xl border border-white/10 overflow-hidden">
           {/* 헤더 */}
-          <div className="grid grid-cols-[40px_1fr_80px_80px_80px] gap-2 px-4 py-3 border-b border-white/10 text-xs text-muted-foreground font-medium">
+          <div className="grid grid-cols-[32px_1fr_80px] sm:grid-cols-[40px_1fr_80px_80px_80px] gap-2 px-4 py-3 border-b border-white/10 text-xs text-muted-foreground font-medium">
             <span className="text-center">순위</span>
             <span>선수</span>
             <span className="text-right">포인트</span>
@@ -211,12 +211,12 @@ export default async function RankingsPage({
           </div>
 
           {rankings.map((r) => (
-            <div key={`${r.name}|${r.club}`} className="grid grid-cols-[40px_1fr_80px_80px_80px] gap-2 px-4 py-3.5 border-b border-white/10 last:border-0 hover:bg-white/[0.03] transition-colors items-center">
+            <div key={`${r.name}|${r.club}`} className="grid grid-cols-[32px_1fr_80px] sm:grid-cols-[40px_1fr_80px_80px_80px] gap-2 px-4 py-3.5 border-b border-white/10 last:border-0 hover:bg-white/[0.03] transition-colors items-center">
               <div className="flex justify-center">{rankBadge(r.rank)}</div>
 
-              <div>
-                <p className="font-medium text-sm">{r.name}</p>
-                {r.club && <p className="text-xs text-muted-foreground">{r.club}</p>}
+              <div className="min-w-0">
+                <p className="font-medium text-sm truncate">{r.name}</p>
+                {r.club && <p className="text-xs text-muted-foreground truncate">{r.club}</p>}
               </div>
 
               <div className="text-right">
