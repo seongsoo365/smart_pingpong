@@ -266,7 +266,7 @@ export default function ScoresPage() {
           ...gMatches.map(m => m.participant1_id),
           ...gMatches.map(m => m.participant2_id),
         ].filter(Boolean))] as string[]
-        const standings = calculateStandings(gMatches, ids)
+        const standings = calculateStandings(gMatches, ids, prelimPhase.ranking_method ?? 'wins_first')
         if (getTieGroups(standings).length > 0 && !confirmedGroupIdsRef.current.has(group.id)) {
           next[group.id] = prev[group.id] ?? standings.map(s => s.participant_id)
         }
@@ -456,7 +456,7 @@ export default function ScoresPage() {
       ...updatedMatches.map(m => m.participant2_id),
     ].filter(Boolean))] as string[]
 
-    const standings = calculateStandings(updatedMatches, participantIds)
+    const standings = calculateStandings(updatedMatches, participantIds, phase.ranking_method ?? 'wins_first')
     const advanceCount = phase.advancement_count ?? 2
     if (hasTieAtBoundary(standings, advanceCount)) return
 
@@ -541,7 +541,7 @@ export default function ScoresPage() {
       ...groupMatches.map(m => m.participant2_id),
     ].filter(Boolean))] as string[]
 
-    const rawStandings = calculateStandings(groupMatches, participantIds)
+    const rawStandings = calculateStandings(groupMatches, participantIds, phase.ranking_method ?? 'wins_first')
     const statsMap = new Map(rawStandings.map(s => [s.participant_id, s]))
 
     // orderedIds가 사용자가 조정한 순서 — ranking은 반드시 이 순서 기준으로 저장
@@ -571,6 +571,7 @@ export default function ScoresPage() {
   function reopenTieBreak(groupId: string) {
     // DB에 저장된 순위가 있으면 그것을 초기값으로 사용 (이전 조정 반영)
     // 없으면 경기 결과로 재계산
+    const prelimPhase = phases.find(p => p.phase_type === 'preliminary')
     const savedOrder = confirmedRankings[groupId]
     const currentOrder = savedOrder ?? (() => {
       const groupMatches = matches.filter(m => m.group_id === groupId)
@@ -578,7 +579,7 @@ export default function ScoresPage() {
         ...groupMatches.map(m => m.participant1_id),
         ...groupMatches.map(m => m.participant2_id),
       ].filter(Boolean))] as string[]
-      return calculateStandings(groupMatches, ids).map(s => s.participant_id)
+      return calculateStandings(groupMatches, ids, prelimPhase?.ranking_method ?? 'wins_first').map(s => s.participant_id)
     })()
 
     const newSet = new Set(confirmedGroupIds)
@@ -590,12 +591,13 @@ export default function ScoresPage() {
 
   function moveInTie(groupId: string, fromIdx: number, dir: -1 | 1) {
     const toIdx = fromIdx + dir
+    const prelimPhase = phases.find(p => p.phase_type === 'preliminary')
     setTieBreaks(prev => {
       const arr = [...(prev[groupId] ?? [])]
       if (toIdx < 0 || toIdx >= arr.length) return prev
       const gMatches = matches.filter(m => m.group_id === groupId)
       const ids = [...new Set([...gMatches.map(m => m.participant1_id), ...gMatches.map(m => m.participant2_id)].filter(Boolean))] as string[]
-      const standings = calculateStandings(gMatches, ids)
+      const standings = calculateStandings(gMatches, ids, prelimPhase?.ranking_method ?? 'wins_first')
       const tiedGroups = getTieGroups(standings)
       const fromOriginalIdx = standings.findIndex(s => s.participant_id === arr[fromIdx])
       const toOriginalIdx = standings.findIndex(s => s.participant_id === arr[toIdx])
@@ -1072,7 +1074,7 @@ export default function ScoresPage() {
                 ...groupMatches.map(m => m.participant1_id),
                 ...groupMatches.map(m => m.participant2_id),
               ].filter(Boolean))] as string[]
-              const groupStandings = calculateStandings(groupMatches, groupIds)
+              const groupStandings = calculateStandings(groupMatches, groupIds, currentPhase.ranking_method ?? 'wins_first')
               const tieGroups = getTieGroups(groupStandings)
               const tiedIndices = new Set(tieGroups.flat())
               const advanceCount = currentPhase.advancement_count ?? 2

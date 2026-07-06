@@ -5,6 +5,7 @@ export type MatchType = 'individual' | 'team'
 export type PhaseType = 'preliminary' | 'main'
 export type PhaseFormat = 'round_robin' | 'single_elimination' | 'double_elimination' | 'group_knockout'
 export type MatchStatus = 'pending' | 'in_progress' | 'completed' | 'bye'
+export type RankingMethod = 'wins_first' | 'setdiff_first'
 export type TeamMatchFormat =
   | 'olympic'             // 올림픽 공식 (3인, 복·단·단·단)
   | 'traditional_4s1d'    // 4단 1복 (최소4인, 단·단·복·단·단)
@@ -73,6 +74,7 @@ export interface TournamentPhase {
   points_per_game: number
   advancement_count?: number
   team_match_format?: TeamMatchFormat
+  ranking_method?: RankingMethod
   is_active: boolean
   division?: Division
 }

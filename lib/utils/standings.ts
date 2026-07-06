@@ -1,4 +1,4 @@
-import type { Match, Standing } from '@/lib/types'
+import type { Match, RankingMethod, Standing } from '@/lib/types'
 
 type StandingRow = Omit<Standing, 'id' | 'group_id' | 'updated_at'>
 
@@ -29,7 +29,8 @@ export function getTieGroups(standings: StandingRow[]): number[][] {
 
 export function calculateStandings(
   matches: Match[],
-  participantIds: string[]
+  participantIds: string[],
+  rankingMethod: RankingMethod = 'wins_first'
 ): StandingRow[] {
   const stats: Record<string, {
     participant_id: string
@@ -71,13 +72,15 @@ export function calculateStandings(
   }
 
   const sorted = Object.values(stats).sort((a, b) => {
-    if (b.wins !== a.wins) return b.wins - a.wins
-    const setDiffA = a.sets_won - a.sets_lost
-    const setDiffB = b.sets_won - b.sets_lost
-    if (setDiffB !== setDiffA) return setDiffB - setDiffA
-    const ptDiffA = a.points_won - a.points_lost
-    const ptDiffB = b.points_won - b.points_lost
-    return ptDiffB - ptDiffA
+    const winDiff = b.wins - a.wins
+    const setDiff = (b.sets_won - b.sets_lost) - (a.sets_won - a.sets_lost)
+    const ptDiff = (b.points_won - b.points_lost) - (a.points_won - a.points_lost)
+
+    const order = rankingMethod === 'setdiff_first'
+      ? [setDiff, winDiff, ptDiff]
+      : [winDiff, setDiff, ptDiff]
+
+    return order.find(d => d !== 0) ?? 0
   })
 
   return sorted.map((s, i) => ({ ...s, ranking: i + 1 }))

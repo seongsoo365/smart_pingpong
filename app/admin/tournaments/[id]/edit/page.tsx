@@ -6,7 +6,7 @@ import { ChevronLeft, Users, GitBranch, ClipboardList, Plus, Trash2, Save, Exter
 import { HelpPopover } from '@/components/ui/help-popover'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import type { Tournament, Division, TournamentPhase, Gender, MatchType, TeamMatchFormat, PhaseFormat, UserProfile, TournamentAdmin } from '@/lib/types'
+import type { Tournament, Division, TournamentPhase, Gender, MatchType, TeamMatchFormat, PhaseFormat, RankingMethod, UserProfile, TournamentAdmin } from '@/lib/types'
 
 const genderLabel: Record<string, string> = { male: '남자', female: '여자', mixed: '혼합' }
 const matchTypeLabel: Record<string, string> = { individual: '개인전', team: '단체전' }
@@ -40,15 +40,20 @@ const defaultNewDiv = (): DivisionForm => ({ name: '', gender: 'male', match_typ
 
 interface PhaseEdit {
   hasPrelim: boolean
-  prelim: { format: PhaseFormat; games_per_match: number; points_per_game: number; advancement_count: number; team_match_format: TeamMatchFormat | '' }
+  prelim: { format: PhaseFormat; games_per_match: number; points_per_game: number; advancement_count: number; team_match_format: TeamMatchFormat | ''; ranking_method: RankingMethod }
   main: { format: PhaseFormat; games_per_match: number; points_per_game: number; team_match_format: TeamMatchFormat | '' }
 }
 function defaultPhaseEdit(): PhaseEdit {
   return {
     hasPrelim: false,
-    prelim: { format: 'round_robin', games_per_match: 5, points_per_game: 11, advancement_count: 2, team_match_format: '' },
+    prelim: { format: 'round_robin', games_per_match: 5, points_per_game: 11, advancement_count: 2, team_match_format: '', ranking_method: 'wins_first' },
     main: { format: 'single_elimination', games_per_match: 5, points_per_game: 11, team_match_format: '' },
   }
+}
+
+const RANKING_METHOD_LABEL: Record<RankingMethod, string> = {
+  wins_first: '승수 우선 (기본)',
+  setdiff_first: '세트 득실 우선',
 }
 
 export default function TournamentEditPage({ params }: { params: Promise<{ id: string }> }) {
@@ -343,6 +348,7 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
         points_per_game: prelim?.points_per_game ?? 11,
         advancement_count: prelim?.advancement_count ?? 2,
         team_match_format: (prelim?.team_match_format ?? '') as TeamMatchFormat | '',
+        ranking_method: prelim?.ranking_method ?? 'wins_first',
       },
       main: {
         format: (main?.format ?? 'single_elimination') as PhaseFormat,
@@ -369,6 +375,7 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
         points_per_game: phaseEdit.prelim.points_per_game,
         advancement_count: phaseEdit.prelim.advancement_count,
         team_match_format: phaseEdit.prelim.team_match_format || null,
+        ranking_method: phaseEdit.prelim.ranking_method,
       }
       if (existingPrelim) {
         const { data } = await supabase.from('tournament_phases').update(payload).eq('id', existingPrelim.id).select().single()
@@ -857,6 +864,22 @@ export default function TournamentEditPage({ params }: { params: Promise<{ id: s
                               value={phaseEdit.prelim.advancement_count}
                               onChange={e => setPhaseEdit(p => ({ ...p, prelim: { ...p.prelim, advancement_count: Number(e.target.value) } }))}
                               className="w-full glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary" />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs text-muted-foreground flex items-center gap-1">
+                              순위 결정 기준
+                              <HelpPopover title="순위 결정 기준">
+                                <p><strong className="text-foreground">승수 우선(기본)</strong>: 승수 → 세트 득실차 → 점수 득실차 순으로 비교합니다.</p>
+                                <p><strong className="text-foreground">세트 득실 우선</strong>: 세트 득실차 → 승수 → 점수 득실차 순으로 비교합니다.</p>
+                              </HelpPopover>
+                            </label>
+                            <select value={phaseEdit.prelim.ranking_method}
+                              onChange={e => setPhaseEdit(p => ({ ...p, prelim: { ...p.prelim, ranking_method: e.target.value as RankingMethod } }))}
+                              className="w-full glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-background outline-none focus:border-primary">
+                              {(Object.entries(RANKING_METHOD_LABEL) as [RankingMethod, string][]).map(([val, label]) => (
+                                <option key={val} value={val}>{label}</option>
+                              ))}
+                            </select>
                           </div>
                           {div.match_type === 'team' && (
                             <div className="space-y-1 col-span-2 sm:col-span-4">

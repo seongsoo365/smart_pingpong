@@ -195,6 +195,7 @@ export default function DivisionRealtimeContent({
                 {PHASE_FORMAT_LABEL[prelim.format] ?? prelim.format}
                 {' · '}{prelim.games_per_match}게임/{prelim.points_per_game}점
                 {prelim.advancement_count ? ` · 조당 ${prelim.advancement_count}팀 진출` : ''}
+                {prelim.ranking_method === 'setdiff_first' ? ' · 세트득실 우선' : ''}
               </span>
             )}
           </button>
@@ -246,7 +247,7 @@ export default function DivisionRealtimeContent({
                 .sort((a, b) => a.ranking - b.ranking)
                 .map(s => ({ ...s, name: getName(s.participant_id) ?? '?', club: getClub(s.participant_id) }))
             } else {
-              rows = calculateStandings(groupMatches, ids).map(s => ({
+              rows = calculateStandings(groupMatches, ids, prelim?.ranking_method ?? 'wins_first').map(s => ({
                 ...s,
                 name: getName(s.participant_id) ?? '?',
                 club: getClub(s.participant_id),
