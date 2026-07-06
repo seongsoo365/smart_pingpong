@@ -158,7 +158,7 @@ export default async function RankingsPage({
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
       <div>
         <h1 className="text-2xl font-bold">랭킹</h1>
-        <p className="text-sm text-muted-foreground mt-1">대회 경기 및 일회성 게임 결과를 기반으로 산출된 개인 포인트 순위입니다.</p>
+        <p className="text-sm text-muted-foreground mt-1">대회 경기 및 숏게임 결과를 기반으로 산출된 개인 포인트 순위입니다.</p>
       </div>
 
       {/* 검색 */}
@@ -183,7 +183,7 @@ export default async function RankingsPage({
       <details className="glass rounded-xl border border-white/10 px-4 py-3">
         <summary className="text-sm font-medium cursor-pointer select-none">포인트 부여 기준 보기</summary>
         <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 text-sm text-muted-foreground">
-          <span>일회성 게임 승리</span><span className="text-foreground font-medium text-right">+10</span>
+          <span>숏게임 승리</span><span className="text-foreground font-medium text-right">+10</span>
           <span>대회 예선 매치 승리</span><span className="text-foreground font-medium text-right">+15</span>
           <span>본선 16강 승리</span><span className="text-foreground font-medium text-right">+30</span>
           <span>본선 8강 승리</span><span className="text-foreground font-medium text-right">+50</span>
@@ -237,7 +237,7 @@ export default async function RankingsPage({
                   <p className="text-xs text-foreground/60">예선 {r.breakdown.preliminary}pt</p>
                 )}
                 {r.breakdown.casual > 0 && (
-                  <p className="text-xs text-muted-foreground">게임 {r.breakdown.casual}pt</p>
+                  <p className="text-xs text-muted-foreground">숏게임 {r.breakdown.casual}pt</p>
                 )}
               </div>
             </div>

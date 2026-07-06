@@ -47,7 +47,7 @@ export default function MyGameHistory({ refreshKey }: Props) {
   return (
     <div className="space-y-3 pt-2">
       <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
-        내가 등록한 기록
+        내가 등록한 숏게임
       </h2>
       {loading ? (
         <p className="text-sm text-muted-foreground">불러오는 중...</p>

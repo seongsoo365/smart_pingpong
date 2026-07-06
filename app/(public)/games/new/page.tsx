@@ -148,14 +148,14 @@ export default function NewGamePage() {
         <div className="text-center space-y-6">
           <CheckCircle className="w-16 h-16 text-primary mx-auto" />
           <div>
-            <h1 className="text-2xl font-bold">게임이 등록됐습니다!</h1>
+            <h1 className="text-2xl font-bold">숏게임이 등록됐습니다!</h1>
             <p className="text-muted-foreground text-sm mt-2">
               {form.player1_name} vs {form.player2_name} · {finalScore.s1}:{finalScore.s2}
               {' '}({p1Won ? form.player1_name : form.player2_name} 승)
             </p>
           </div>
           <div className="flex gap-3 justify-center">
-            <Button onClick={handleReset} variant="outline">한 게임 더 등록</Button>
+            <Button onClick={handleReset} variant="outline">숏게임 더 등록</Button>
             <a
               href="/players"
               className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
@@ -172,7 +172,7 @@ export default function NewGamePage() {
   return (
     <div className="max-w-lg mx-auto px-4 py-8 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">게임 기록 등록</h1>
+        <h1 className="text-2xl font-bold">숏게임 등록</h1>
         <p className="text-muted-foreground text-sm mt-1">
           1:1 단식 경기 결과를 기록합니다. 로그인 없이 등록할 수 있습니다. 
           <br/>대회 결과는 관리자 메뉴에서 등록하세요.
@@ -431,7 +431,7 @@ export default function NewGamePage() {
       {error && <p className="text-red-400 text-sm">{error}</p>}
 
       <Button onClick={handleSubmit} disabled={saving} className="w-full" size="lg">
-        {saving ? '등록 중...' : '게임 등록'}
+        {saving ? '등록 중...' : '숏게임 등록'}
       </Button>
 
       <MyGameHistory refreshKey={refreshKey} />

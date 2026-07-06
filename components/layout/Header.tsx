@@ -8,7 +8,7 @@ import ThemeToggle from './ThemeToggle'
 const navLinks = [
   { href: '/',            label: '홈' },
   { href: '/tournaments', label: '대회 목록' },
-  { href: '/games/new',   label: '게임 기록 등록' },
+  { href: '/games/new',   label: '숏게임 등록' },
   { href: '/players',     label: '전적 조회' },
   { href: '/rankings',    label: '랭킹' },
 ]

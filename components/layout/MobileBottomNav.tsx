@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 const navItems = [
   { href: '/',             icon: Home,      label: '홈' },
   { href: '/tournaments',  icon: Trophy,    label: '대회' },
-  { href: '/games/new',    icon: Gamepad2,  label: '게임' },
+  { href: '/games/new',    icon: Gamepad2,  label: '숏게임' },
   { href: '/players',      icon: Users,     label: '전적' },
   { href: '/rankings',     icon: Medal,     label: '랭킹' },
   { href: '/admin',        icon: Settings,  label: '관리' },

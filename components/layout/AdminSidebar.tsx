@@ -10,7 +10,7 @@ import ThemeToggle from './ThemeToggle'
 const navItems = [
   { href: '/admin',                 icon: LayoutDashboard, label: '대시보드',    exact: true },
   { href: '/admin/tournaments/new', icon: Trophy,          label: '대회 등록' },
-  { href: '/admin/games',           icon: Gamepad2,        label: '일회성 게임' },
+  { href: '/admin/games',           icon: Gamepad2,        label: '숏게임' },
   { href: '/admin/qna',             icon: MessageCircle,   label: 'Q&A 관리' },
   { href: '/admin/system/users',    icon: Shield,          label: '사용자 관리' },
 ]

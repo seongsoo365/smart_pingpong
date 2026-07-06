@@ -206,7 +206,7 @@ export async function GET(req: NextRequest) {
         id: g.id,
         phase_id: null,
         tournament_id: null,
-        tournament_name: '일회성 게임',
+        tournament_name: '숏게임',
         tournament_start: g.played_at,
         division_name: g.venue ?? '',
         phase_type: 'casual',

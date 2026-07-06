@@ -196,8 +196,10 @@ function IndividualSection({ supabase, divId, divisions }: { supabase: ReturnTyp
   }
 
   async function updateSeed(playerId: string, seed: number) {
-    await supabase.from('players').update({ seed: seed || null }).eq('id', playerId)
-    setPlayers(prev => prev.map(p => p.id === playerId ? { ...p, seed } : p))
+    const { error } = await supabase.from('players').update({ seed: seed || null }).eq('id', playerId)
+    if (error) { toast.error('시드 저장 실패: ' + error.message); return }
+    setPlayers(prev => prev.map(p => p.id === playerId ? { ...p, seed: seed || undefined } : p)
+      .sort((a, b) => (a.seed ?? Infinity) - (b.seed ?? Infinity)))
   }
 
   return (
@@ -287,6 +289,7 @@ function IndividualSection({ supabase, divId, divisions }: { supabase: ReturnTyp
                           <input
                             type="number" min={1} defaultValue={p.seed ?? ''}
                             onBlur={e => updateSeed(p.id, Number(e.target.value))}
+                            onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
                             className="w-12 glass border border-white/10 rounded-lg px-2 py-1 text-xs text-center bg-transparent outline-none focus:border-primary"
                             placeholder="-"
                           />
@@ -473,8 +476,10 @@ function TeamSection({ supabase, div, divisions }: { supabase: ReturnType<typeof
   }
 
   async function updateSeed(teamId: string, seed: number) {
-    await supabase.from('teams').update({ seed: seed || null }).eq('id', teamId)
-    setTeams(prev => prev.map(t => t.id === teamId ? { ...t, seed } : t))
+    const { error } = await supabase.from('teams').update({ seed: seed || null }).eq('id', teamId)
+    if (error) { toast.error('시드 저장 실패: ' + error.message); return }
+    setTeams(prev => prev.map(t => t.id === teamId ? { ...t, seed: seed || undefined } : t)
+      .sort((a, b) => (a.seed ?? Infinity) - (b.seed ?? Infinity)))
   }
 
   function startEdit(team: TeamWithMembers) {
@@ -675,6 +680,7 @@ function TeamSection({ supabase, div, divisions }: { supabase: ReturnType<typeof
                             <input
                               type="number" min={1} defaultValue={team.seed ?? ''}
                               onBlur={e => updateSeed(team.id, Number(e.target.value))}
+                              onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
                               className="w-12 glass border border-white/10 rounded-lg px-2 py-1 text-xs text-center bg-transparent outline-none focus:border-primary"
                               placeholder="-"
                             />

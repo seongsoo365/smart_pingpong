@@ -49,7 +49,7 @@ interface PlayerRecords {
 }
 
 function formatPhaseRound(phaseType: string, round: number, divisionName: string) {
-  if (phaseType === 'casual') return divisionName || '일회성 게임'
+  if (phaseType === 'casual') return divisionName || '숏게임'
   return phaseType === 'preliminary' ? `예선 ${round}R` : `본선 ${round}R`
 }
 
@@ -207,7 +207,7 @@ export default function PlayersPage() {
       <h1 className="text-2xl font-bold mb-1">전적 조회</h1>
       <p className="text-muted-foreground text-sm mb-4">선수명을 검색하여 상대별 전적을 확인하세요.</p>
 
-      {/* 내가 등록한 게임만 */}
+      {/* 내가 등록한 숏게임만 */}
       <button
         onClick={handleToggleOnlyMyGames}
         className={`flex items-center gap-2 text-sm mb-4 transition-colors ${
@@ -220,7 +220,7 @@ export default function PlayersPage() {
           ? <CheckSquare className="w-4 h-4" />
           : <Square className="w-4 h-4" />
         }
-        내가 등록한 게임만
+        내가 등록한 숏게임만
       </button>
 
       {/* Search */}
@@ -264,7 +264,7 @@ export default function PlayersPage() {
           }`}
         >
           <Gamepad2 className="w-3 h-3" />
-          게임기록
+          숏게임
         </button>
       </div>
 
@@ -394,7 +394,7 @@ export default function PlayersPage() {
                       <p className="text-sm text-muted-foreground mt-0.5 truncate">
                         {m.phase_type === 'casual' ? (
                           <>
-                            <span className="text-accent font-medium">일회성 게임</span>
+                            <span className="text-accent font-medium">숏게임</span>
                             {m.division_name && ` · ${m.division_name}`}
                             {m.tournament_start && ` · ${m.tournament_start}`}
                           </>

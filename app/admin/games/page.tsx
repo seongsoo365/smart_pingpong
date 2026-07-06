@@ -54,7 +54,7 @@ export default function GamesPage() {
       if (!res.ok) throw new Error()
       setGames(await res.json())
     } catch {
-      toast.error('게임 목록을 불러오지 못했습니다.')
+      toast.error('숏게임 목록을 불러오지 못했습니다.')
     } finally {
       setLoading(false)
     }
@@ -128,7 +128,7 @@ export default function GamesPage() {
         const err = await res.json()
         throw new Error(err.error ?? '저장 실패')
       }
-      toast.success(editingId ? '게임을 수정했습니다.' : '게임을 등록했습니다.')
+      toast.success(editingId ? '숏게임을 수정했습니다.' : '숏게임을 등록했습니다.')
       setDialogOpen(false)
       loadGames()
     } catch (e) {
@@ -139,7 +139,7 @@ export default function GamesPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('이 게임 기록을 삭제하시겠습니까?')) return
+    if (!confirm('이 숏게임 기록을 삭제하시겠습니까?')) return
     try {
       const res = await fetch(`/api/games/${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error()
@@ -156,11 +156,11 @@ export default function GamesPage() {
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">일회성 게임</h1>
+          <h1 className="text-2xl font-bold">숏게임</h1>
           <p className="text-muted-foreground text-sm mt-1">대회 외 1:1 단식 경기를 기록합니다.</p>
         </div>
         <Button onClick={openNew} className="flex items-center gap-2">
-          <Plus className="w-4 h-4" /> 게임 등록
+          <Plus className="w-4 h-4" /> 숏게임 등록
         </Button>
       </div>
 
@@ -168,7 +168,7 @@ export default function GamesPage() {
         <div className="text-center py-16 text-muted-foreground text-sm">불러오는 중...</div>
       ) : games.length === 0 ? (
         <div className="glass rounded-xl p-16 text-center text-muted-foreground text-sm">
-          등록된 게임이 없습니다.
+          등록된 숏게임이 없습니다.
         </div>
       ) : (
         <div className="glass rounded-xl overflow-hidden">
@@ -244,7 +244,7 @@ export default function GamesPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingId ? '게임 수정' : '게임 등록'}</DialogTitle>
+            <DialogTitle>{editingId ? '숏게임 수정' : '숏게임 등록'}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-5 pt-2">
