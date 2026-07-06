@@ -106,6 +106,10 @@ API 라우트는 수동으로 소유권을 확인합니다 — 관리자 라우�
 - 공개 컴포넌트: `components/MainQnaSection.tsx` (클라이언트 컴포넌트, 홈 페이지 하단 임베드)
 - AdminSidebar에 "Q&A 관리" 메뉴 항목 추가 완료, 대시보드에 미답변 카운트 표시
 
+#### Q&A 등록 Discord 알림
+
+메인 Q&A(`MainQnaSection.tsx`)와 대회 Q&A(`QnaSection.tsx`) 모두, 질문 INSERT 성공 직후 `/api/notify/discord`를 fire-and-forget으로 호출해 `DISCORD_WEBHOOK_URL` 채널에 알림을 보냅니다. 웹훅 URL 미설정 시 조용히 skip되며, 알림 실패가 질문 등록 자체에 영향을 주지 않습니다 (사이트 전체 공통 웹훅 1개, 대회별 웹훅 없음).
+
 ### 대회 데이터 모델
 
 ```
@@ -175,6 +179,7 @@ tournament (대회)
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=    # /api/admin/create-user에서만 사용
+DISCORD_WEBHOOK_URL=          # (선택) Q&A 질문 등록 알림, 없으면 silent skip
 ```
 
 Supabase가 설정되지 않은 경우, `app/layout.tsx`는 오류 대신 안내 메시지가 포함된 `SetupBanner`를 렌더링합니다.

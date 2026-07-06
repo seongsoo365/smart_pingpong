@@ -34,6 +34,18 @@ export default function QnaSection({ tournamentId, initialQuestions, hideTitle =
     setForm({ name: '', question: '' })
     setSubmitted(true)
     toast.success('질문이 등록되었습니다. 관리자 답변 후 답변이 표시됩니다.')
+
+    fetch('/api/notify/discord', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source: 'tournament',
+        tournamentId,
+        authorName: form.name.trim(),
+        question: form.question.trim(),
+        pageUrl: window.location.href,
+      }),
+    }).catch(() => {})
   }
 
   return (

@@ -72,7 +72,9 @@ smart_pingpong/
 │   │   ├── players/
 │   │   │   ├── records/route.ts        # 선수 전적 조회 (대회 + 일회성 게임 합산, ?ids=&name=&club=)
 │   │   │   └── search/route.ts         # 선수 검색 (players 테이블 + casual_games 이름 통합)
-│   │   └── notify/route.ts             # 승인/거절 이메일 알림 (Resend)
+│   │   └── notify/
+│   │       ├── route.ts                # 승인/거절 이메일 알림 (Resend)
+│   │       └── discord/route.ts        # Q&A 질문 등록 Discord 웹훅 알림
 │   └── auth/
 │       ├── callback/route.ts           # OAuth 코드 교환 (Google)
 │       ├── callback/naver/route.ts     # 네이버 OAuth 콜백
@@ -349,6 +351,7 @@ NEXT_PUBLIC_SUPABASE_URL        # Supabase 프로젝트 URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY   # 공개 anon 키
 SUPABASE_SERVICE_ROLE_KEY       # 서버 전용 (api/admin/create-user만 사용)
 RESEND_API_KEY                  # (선택) 이메일 알림, 없으면 silent skip
+DISCORD_WEBHOOK_URL             # (선택, 서버 전용) Q&A 질문 등록 시 Discord 알림, 없으면 silent skip
 ```
 
 ---
