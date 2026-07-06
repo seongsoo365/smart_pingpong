@@ -91,7 +91,7 @@ API 라우트는 수동으로 소유권을 확인합니다 — 관리자 라우�
 
 대회에 직접 연결됩니다 (부수와 무관). 이메일 필드 없음.
 
-- **공개 방문자**: `answer IS NOT NULL AND is_public = TRUE` 인 행만 SELECT, INSERT는 누구나 가능
+- **공개 방문자**: `is_public = TRUE` 인 행만 SELECT (답변 여부 무관 — 질문 등록 즉시 목록에 노출, 답변 전에는 "답변 대기" 표시), INSERT는 누구나 가능
 - **대회 소유자(admin_id / created_by)**: 전체 SELECT, UPDATE(답변 저장), DELETE 가능
 - 관리자 페이지(`app/admin/tournaments/[id]/qna/page.tsx`)에서 답변 저장 시 `answered_by`(auth.uid), `answered_at`도 함께 저장
 - 공개 컴포넌트: `components/tournament/QnaSection.tsx` (클라이언트 컴포넌트, 공개 대회 상세 페이지에 임베드)
@@ -100,7 +100,7 @@ API 라우트는 수동으로 소유권을 확인합니다 — 관리자 라우�
 
 대회와 무관한 사이트 공통 Q&A. 마이그레이션: `020_main_qna.sql`, `022_drop_main_qna_email.sql`.
 
-- **공개 방문자**: `answer IS NOT NULL AND is_public = TRUE` 인 행만 SELECT, INSERT 비인증 허용
+- **공개 방문자**: `is_public = TRUE` 인 행만 SELECT (답변 여부 무관), INSERT 비인증 허용
 - **system_admin 전용**: 전체 SELECT, UPDATE(답변 저장 + is_public 토글), DELETE 가능
 - 관리자 페이지: `app/admin/qna/page.tsx` (미답변·답변완료 목록, 답변 저장, 공개/비공개 토글, 삭제)
 - 공개 컴포넌트: `components/MainQnaSection.tsx` (클라이언트 컴포넌트, 홈 페이지 하단 임베드)

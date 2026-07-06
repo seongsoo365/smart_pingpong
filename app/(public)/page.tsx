@@ -23,7 +23,6 @@ export default async function HomePage() {
       supabase.from('tournaments').select('*').eq('status', 'draft')
         .order('start_date', { ascending: true, nullsFirst: false }).limit(6),
       supabase.from('main_questions').select('*')
-        .not('answer', 'is', null)
         .eq('is_public', true)
         .order('created_at'),
     ])

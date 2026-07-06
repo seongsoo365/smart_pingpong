@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { MessageCircle, ChevronDown, ChevronUp, Send } from 'lucide-react'
+import { MessageCircle, ChevronDown, ChevronUp, Send, Clock } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { TournamentQuestion } from '@/lib/types'
@@ -23,16 +23,17 @@ export default function QnaSection({ tournamentId, initialQuestions, hideTitle =
     e.preventDefault()
     if (!form.name.trim() || !form.question.trim()) return
     setSubmitting(true)
-    const { error } = await supabase.from('tournament_questions').insert({
+    const { data, error } = await supabase.from('tournament_questions').insert({
       tournament_id: tournamentId,
       author_name: form.name.trim(),
       question: form.question.trim(),
-    })
+    }).select().single()
     setSubmitting(false)
     if (error) { toast.error('질문 등록 실패: ' + error.message); return }
+    if (data) setQuestions(prev => [...prev, data])
     setForm({ name: '', question: '' })
     setSubmitted(true)
-    toast.success('질문이 등록되었습니다. 관리자 답변 후 공개됩니다.')
+    toast.success('질문이 등록되었습니다. 관리자 답변 후 답변이 표시됩니다.')
   }
 
   return (
@@ -43,22 +44,32 @@ export default function QnaSection({ tournamentId, initialQuestions, hideTitle =
         </h2>
       )}
 
-      {/* Answered questions */}
+      {/* 질문 목록 */}
       {questions.length > 0 ? (
         <div className="space-y-2">
           {questions.map(q => (
             <div key={q.id} className="glass rounded-xl border border-white/10 overflow-hidden">
-              <button
-                className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-white/5 transition-colors"
-                onClick={() => setExpanded(expanded === q.id ? null : q.id)}
-              >
-                <span className="text-primary font-bold text-sm shrink-0 mt-0.5">Q.</span>
-                <span className="flex-1 text-sm">{q.question}</span>
-                {expanded === q.id
-                  ? <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
-                  : <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />}
-              </button>
-              {expanded === q.id && (
+              {q.answer ? (
+                <button
+                  className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-white/5 transition-colors"
+                  onClick={() => setExpanded(expanded === q.id ? null : q.id)}
+                >
+                  <span className="text-primary font-bold text-sm shrink-0 mt-0.5">Q.</span>
+                  <span className="flex-1 text-sm">{q.question}</span>
+                  {expanded === q.id
+                    ? <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+                    : <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />}
+                </button>
+              ) : (
+                <div className="w-full flex items-start gap-3 px-4 py-3">
+                  <span className="text-primary font-bold text-sm shrink-0 mt-0.5">Q.</span>
+                  <span className="flex-1 text-sm">{q.question}</span>
+                  <span className="inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full bg-accent/20 text-accent shrink-0 mt-0.5">
+                    <Clock className="w-2.5 h-2.5" /> 답변 대기
+                  </span>
+                </div>
+              )}
+              {expanded === q.id && q.answer && (
                 <div className="px-4 pb-4 pt-2 border-t border-white/10 bg-white/[0.02]">
                   <div className="flex gap-3">
                     <span className="text-accent font-bold text-sm shrink-0">A.</span>
@@ -70,7 +81,7 @@ export default function QnaSection({ tournamentId, initialQuestions, hideTitle =
           ))}
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground">아직 답변된 질문이 없습니다.</p>
+        <p className="text-sm text-muted-foreground">아직 등록된 질문이 없습니다.</p>
       )}
 
       {/* Submit form */}

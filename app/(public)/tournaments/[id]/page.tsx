@@ -37,9 +37,8 @@ export default async function TournamentDetailPage({
     supabase.from('tournament_questions')
       .select('*')
       .eq('tournament_id', id)
-      .not('answer', 'is', null)
       .eq('is_public', true)
-      .order('answered_at', { ascending: true }),
+      .order('created_at', { ascending: true }),
   ])
 
   const teamDivisions = (divisions ?? []).filter((d: Division) => d.match_type === 'team')
