@@ -228,17 +228,19 @@ function IndividualSection({ supabase, divId, divisions }: { supabase: ReturnTyp
                         placeholder="소속"
                         className="flex-1 min-w-24 glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary" />
                     </div>
-                    <div className="flex items-center gap-2 pl-7">
-                      <span className="text-xs text-muted-foreground shrink-0">부수</span>
-                      <select value={editDivisionId} onChange={e => setEditDivisionId(e.target.value)}
-                        className="flex-1 glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary">
-                        {individualDivisions.map(d => (
-                          <option key={d.id} value={d.id} className="bg-background">
-                            {genderLabel[d.gender]} {d.name}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="flex gap-1.5 shrink-0">
+                    <div className="flex flex-col gap-2 pl-7 sm:flex-row sm:items-center">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <span className="text-xs text-muted-foreground shrink-0">부수</span>
+                        <select value={editDivisionId} onChange={e => setEditDivisionId(e.target.value)}
+                          className="flex-1 min-w-0 glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary">
+                          {individualDivisions.map(d => (
+                            <option key={d.id} value={d.id} className="bg-background">
+                              {genderLabel[d.gender]} {d.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex gap-1.5 shrink-0 justify-end">
                         <button type="submit"
                           className="p-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors">
                           <Check className="w-3.5 h-3.5" />
@@ -584,10 +586,10 @@ function TeamSection({ supabase, div, divisions }: { supabase: ReturnType<typeof
                         placeholder="소속"
                         className="flex-1 min-w-32 glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary" />
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                       <span className="text-xs text-muted-foreground shrink-0">부수</span>
                       <select value={editDivisionId} onChange={e => setEditDivisionId(e.target.value)}
-                        className="flex-1 glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary">
+                        className="flex-1 min-w-0 glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary">
                         {teamDivisions.map(d => (
                           <option key={d.id} value={d.id} className="bg-background">
                             {genderLabel[d.gender]} {d.name}
@@ -598,16 +600,16 @@ function TeamSection({ supabase, div, divisions }: { supabase: ReturnType<typeof
                     <div className="space-y-1.5">
                       <p className="text-xs text-muted-foreground">선수 명단</p>
                       {editMembers.map((member, idx) => (
-                        <div key={idx} className="flex items-center gap-2">
+                        <div key={idx} className="flex items-center gap-1.5">
                           <span className="text-xs text-muted-foreground w-4 text-right shrink-0">{idx + 1}</span>
                           <input value={member.name} onChange={e => updateEditMember(idx, 'name', e.target.value)}
                             placeholder={`선수 ${idx + 1}`}
-                            className="flex-1 glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary" />
+                            className="flex-1 min-w-0 glass border border-white/10 rounded-lg px-3 py-1.5 text-sm bg-transparent outline-none focus:border-primary" />
                           <input type="number" min={1} max={99}
                             value={member.level}
                             onChange={e => updateEditMember(idx, 'level', e.target.value)}
                             placeholder="-"
-                            className="w-12 text-center glass border border-white/10 rounded-lg px-1 py-1.5 text-sm bg-transparent outline-none focus:border-primary" />
+                            className="w-10 shrink-0 text-center glass border border-white/10 rounded-lg px-1 py-1.5 text-sm bg-transparent outline-none focus:border-primary" />
                           <span className="text-xs text-muted-foreground shrink-0">부</span>
                           {editMembers.length > teamSize.min && (
                             <button type="button" onClick={() => removeEditMember(idx)}
@@ -753,16 +755,16 @@ function TeamSection({ supabase, div, divisions }: { supabase: ReturnType<typeof
             </span>
           </p>
           {newMembers.map((member, idx) => (
-            <div key={idx} className="flex items-center gap-2">
+            <div key={idx} className="flex items-center gap-1.5">
               <span className="text-xs text-muted-foreground w-4 text-right shrink-0">{idx + 1}</span>
               <input value={member.name} onChange={e => updateNewMember(idx, 'name', e.target.value)}
                 placeholder={`선수 ${idx + 1} 이름`}
-                className="flex-1 glass border border-white/10 rounded-xl px-4 py-2.5 text-sm bg-transparent outline-none focus:border-primary" />
+                className="flex-1 min-w-0 glass border border-white/10 rounded-xl px-4 py-2.5 text-sm bg-transparent outline-none focus:border-primary" />
               <input type="number" min={1} max={99}
                 value={member.level}
                 onChange={e => updateNewMember(idx, 'level', e.target.value)}
                 placeholder="-"
-                className="w-14 text-center glass border border-white/10 rounded-xl px-2 py-2.5 text-sm bg-transparent outline-none focus:border-primary" />
+                className="w-12 shrink-0 text-center glass border border-white/10 rounded-xl px-2 py-2.5 text-sm bg-transparent outline-none focus:border-primary" />
               <span className="text-xs text-muted-foreground shrink-0">부</span>
               {newMembers.length > teamSize.min && (
                 <button type="button" onClick={() => removeNewMember(idx)}
