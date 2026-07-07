@@ -7,6 +7,7 @@ import BracketView from '@/components/tournament/BracketView'
 import GroupMatrix from '@/components/tournament/GroupMatrix'
 import MatchSchedule from '@/components/tournament/MatchSchedule'
 import { createClient } from '@/lib/supabase/client'
+import { MATCH_SELECT } from '@/lib/supabase/selects'
 import { calculateStandings } from '@/lib/utils/standings'
 import { cn } from '@/lib/utils'
 import type { Group, Match, MatchSet, Player, Standing, Team, TournamentPhase } from '@/lib/types'
@@ -67,17 +68,17 @@ export default function DivisionRealtimeContent({
     const refetch = async () => {
       const [{ data: pm }, { data: mm }, { data: ss }] = await Promise.all([
         prelimId
-          ? supabase.from('matches').select('*, sets:match_sets(*)').eq('phase_id', prelimId)
+          ? supabase.from('matches').select(MATCH_SELECT).eq('phase_id', prelimId)
           : Promise.resolve({ data: [] as Match[] }),
         mainId
-          ? supabase.from('matches').select('*, sets:match_sets(*)').eq('phase_id', mainId).order('round').order('match_number')
+          ? supabase.from('matches').select(MATCH_SELECT).eq('phase_id', mainId).order('round').order('match_number')
           : Promise.resolve({ data: [] as Match[] }),
         gids.length > 0
           ? supabase.from('standings').select('*').in('group_id', gids)
           : Promise.resolve({ data: [] as Standing[] }),
       ])
-      if (pm) setPrelimMatches(pm)
-      if (mm) setMainMatches(mm)
+      if (pm) setPrelimMatches(pm as unknown as Match[])
+      if (mm) setMainMatches(mm as unknown as Match[])
       if (ss) setStandings(ss)
     }
 

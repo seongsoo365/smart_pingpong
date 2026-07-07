@@ -359,7 +359,7 @@ DISCORD_WEBHOOK_URL             # (선택, 서버 전용) Q&A 질문 등록 시 
 ## 마이그레이션 실행 순서
 
 Supabase SQL Editor에서 번호 순서대로 실행:
-`001 → 002 → 003 → 004 → 005 → 006 → 008 → 009 → 010 → 011 → 012 → 016 → 017 → 018_phase_team_match_format → 018_registration_self_edit → 019 → 020 → 021 → 022 → 023 → 024 → 025`
+`001 → 002 → 003 → 004 → 005 → 006 → 008 → 009 → 010 → 011 → 012 → 016 → 017 → 018_phase_team_match_format → 018_registration_self_edit → 019 → 020 → 021 → 022 → 023 → 024 → 025 → 026`
 
 > 007은 결번 (team_member_level은 009에 통합됨)  
 > 013·014·015는 소셜 로그인/비밀번호 관련 마이그레이션 (별도 실행됨)  
@@ -370,4 +370,5 @@ Supabase SQL Editor에서 번호 순서대로 실행:
 > 022는 main_questions.author_email 컬럼 제거 (021 이후 실행)  
 > 023은 tournament_phases.ranking_method 컬럼 추가 (예선 순위 결정 기준: 승수 우선/세트 득실 우선, 기본값 wins_first)  
 > 024는 players/teams.memo 컬럼 추가 (관리자 전용 신청자 메모, 단체전은 팀 단위)  
-> 025는 tournament_questions/main_questions의 공개 SELECT 정책을 답변 여부와 무관하게 is_public 기준으로 변경 (질문 등록 즉시 노출)
+> 025는 tournament_questions/main_questions의 공개 SELECT 정책을 답변 여부와 무관하게 is_public 기준으로 변경 (질문 등록 즉시 노출)  
+> 026은 matches.participant1_id/2_id, tournament_questions.tournament_id, team_members.team_id, teams.group_id, tournament_admins.user_id에 누락된 인덱스 추가 (성능 개선)

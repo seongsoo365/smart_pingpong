@@ -1,5 +1,6 @@
 import { createClientSafe } from '@/lib/supabase/server'
 import { getMatchRatingPoints } from '@/lib/utils/rating'
+import RankingsSearchForm from '@/components/tournament/RankingsSearchForm'
 import type { PlayerRanking } from '@/lib/types'
 
 export const revalidate = 60
@@ -162,22 +163,7 @@ export default async function RankingsPage({
       </div>
 
       {/* 검색 */}
-      <form method="get" className="flex gap-2">
-        <input
-          name="q"
-          defaultValue={query}
-          placeholder="이름 또는 소속으로 검색"
-          className="flex-1 glass border border-white/10 rounded-xl px-4 py-2.5 text-sm bg-transparent outline-none focus:border-primary transition-colors"
-        />
-        <button type="submit" className="px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors">
-          검색
-        </button>
-        {query && (
-          <a href="/rankings" className="px-4 py-2.5 glass border border-white/10 rounded-xl text-sm text-muted-foreground hover:text-foreground transition-colors">
-            초기화
-          </a>
-        )}
-      </form>
+      <RankingsSearchForm defaultValue={query} />
 
       {/* 포인트 규칙 안내 */}
       <details className="glass rounded-xl border border-white/10 px-4 py-3">

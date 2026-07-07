@@ -1,25 +1,26 @@
 import Link from 'next/link'
 import { Plus, Trophy, ArrowRight, MessageCircle, Clock } from 'lucide-react'
-import { createClientSafe } from '@/lib/supabase/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import TournamentDashboardList from '@/components/admin/TournamentDashboardList'
 import type { Tournament } from '@/lib/types'
 
 export default async function AdminDashboard() {
-  const supabase = await createClientSafe()
+  const { supabase, user } = await getAuthUser()
   if (!supabase) redirect('/login')
-
-  const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('user_profiles').select('*').eq('id', user.id).single()
+  const [{ data: profile }, { count: unansweredQnaCount }] = await Promise.all([
+    supabase.from('user_profiles').select('*').eq('id', user.id).single(),
+    supabase.from('main_questions').select('*', { count: 'exact', head: true }).is('answer', null),
+  ])
 
   const isSystemAdmin = profile?.role === 'system_admin'
 
   const tournaments = await (async () => {
+    const TOURNAMENT_LIST_SELECT = 'id, name, venue, start_date, end_date, status'
     if (isSystemAdmin) {
-      const { data } = await supabase.from('tournaments').select('*').order('created_at', { ascending: false }).limit(20)
+      const { data } = await supabase.from('tournaments').select(TOURNAMENT_LIST_SELECT).order('created_at', { ascending: false }).limit(20)
       return data
     }
     const { data: coAdminRows } = await supabase
@@ -28,7 +29,7 @@ export default async function AdminDashboard() {
     const orParts = [`admin_id.eq.${user.id}`, `created_by.eq.${user.id}`]
     if (coAdminIds.length > 0) orParts.push(`id.in.(${coAdminIds.join(',')})`)
     const { data } = await supabase
-      .from('tournaments').select('*').or(orParts.join(',')).order('created_at', { ascending: false }).limit(20)
+      .from('tournaments').select(TOURNAMENT_LIST_SELECT).or(orParts.join(',')).order('created_at', { ascending: false }).limit(20)
     return data
   })()
 
@@ -38,11 +39,6 @@ export default async function AdminDashboard() {
     in_progress: tournaments?.filter(t => t.status === 'in_progress').length ?? 0,
     completed:   tournaments?.filter(t => t.status === 'completed').length ?? 0,
   }
-
-  const { count: unansweredQnaCount } = await supabase
-    .from('main_questions')
-    .select('*', { count: 'exact', head: true })
-    .is('answer', null)
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">

@@ -14,7 +14,8 @@ const statusLabel: Record<string, string> = {
 }
 
 interface TeamWithMembers extends Team { members: TeamMember[]; created_at?: string }
-interface DivisionWithTeams extends Division {
+type DivisionSummary = Pick<Division, 'id' | 'name' | 'gender' | 'match_type' | 'team_match_format' | 'max_teams'>
+interface DivisionWithTeams extends DivisionSummary {
   approvedTeams: TeamWithMembers[]
   pendingTeams: TeamWithMembers[]
 }
@@ -28,30 +29,30 @@ export default async function TournamentDetailPage({
   const supabase = await createClientSafe()
   if (!supabase) notFound()
 
-  const { data: tournament } = await supabase
-    .from('tournaments').select('*, admin:admin_id(name)').eq('id', id).single()
-  if (!tournament) notFound()
-
-  const [{ data: divisions }, { data: questions }] = await Promise.all([
-    supabase.from('divisions').select('*').eq('tournament_id', id).order('display_order'),
+  const [{ data: tournament }, { data: divisions }, { data: questions }] = await Promise.all([
+    supabase.from('tournaments')
+      .select('id, name, description, venue, start_date, end_date, registration_start, registration_end, status, regulations, admin:admin_id(name)')
+      .eq('id', id).single(),
+    supabase.from('divisions').select('id, name, gender, match_type, team_match_format, max_teams').eq('tournament_id', id).order('display_order'),
     supabase.from('tournament_questions')
       .select('*')
       .eq('tournament_id', id)
       .eq('is_public', true)
       .order('created_at', { ascending: true }),
   ])
+  if (!tournament) notFound()
 
-  const teamDivisions = (divisions ?? []).filter((d: Division) => d.match_type === 'team')
+  const teamDivisions = (divisions ?? []).filter(d => d.match_type === 'team')
   let teamDivisionsWithTeams: DivisionWithTeams[] = []
   if (teamDivisions.length > 0) {
-    const teamDivIds = teamDivisions.map((d: Division) => d.id)
+    const teamDivIds = teamDivisions.map(d => d.id)
     const { data: allTeams } = await supabase
       .from('teams')
-      .select('*, members:team_members(*)')
+      .select('id, name, club, confirmed, division_id, created_at, members:team_members(id, player_name, player_order, player_level)')
       .in('division_id', teamDivIds)
       .order('created_at')
     const teamsData = (allTeams ?? []) as TeamWithMembers[]
-    teamDivisionsWithTeams = teamDivisions.map((div: Division) => {
+    teamDivisionsWithTeams = teamDivisions.map((div) => {
       const divTeams = teamsData.filter(t => t.division_id === div.id)
         .map(t => ({ ...t, members: [...(t.members ?? [])].sort((a, b) => a.player_order - b.player_order) }))
       return {
@@ -221,7 +222,7 @@ export default async function TournamentDetailPage({
         <div className="px-4 pb-4 space-y-3">
           {(divisions?.length ?? 0) > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {divisions?.map((div: Division) => (
+              {divisions?.map((div) => (
                 <Link key={div.id} href={`/tournaments/${id}/divisions/${div.id}`}
                   className="glass rounded-xl p-4 border border-white/10 hover:bg-white/10 hover:border-primary/30 transition-all group/div">
                   <div className="flex items-center justify-between">

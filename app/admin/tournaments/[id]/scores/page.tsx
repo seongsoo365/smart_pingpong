@@ -174,10 +174,11 @@ export default function ScoresPage() {
       const byeMatches = allMatches.filter(x =>
         x.phase_id === mainPhase.id && x.status === 'bye' && x.winner_id && x.round === 1
       )
-      for (const byeMatch of byeMatches) {
+      // 부전승마다 각기 다른 슬롯/필드를 갱신하므로 병렬 처리 가능
+      await Promise.all(byeMatches.map(async (byeMatch) => {
         const slot = Math.floor((byeMatch.match_number - 1) / 2)
         const next = round2[slot]
-        if (!next) continue
+        if (!next) return
         const isP1 = byeMatch.match_number % 2 === 1
         if (isP1 && !next.participant1_id) {
           await supabase.from('matches').update({ participant1_id: byeMatch.winner_id }).eq('id', next.id)
@@ -186,7 +187,7 @@ export default function ScoresPage() {
           await supabase.from('matches').update({ participant2_id: byeMatch.winner_id }).eq('id', next.id)
           next.participant2_id = byeMatch.winner_id
         }
-      }
+      }))
 
       // Preliminary-path byes: round 1 matches with exactly one participant
       // (totalAdvancing이 2의 거듭제곱이 아닐 때 발생하는 구조적 부전승)
@@ -213,15 +214,16 @@ export default function ScoresPage() {
             !x.winner_id &&
             ((x.participant1_id && !x.participant2_id) || (!x.participant1_id && x.participant2_id))
           )
-          for (const match of singleSlotMatches) {
+          // 구조적 부전승 처리 대상 매치들은 서로 다른 슬롯을 갱신하므로 병렬 처리 가능
+          await Promise.all(singleSlotMatches.map(async (match) => {
             const participantId = match.participant1_id ?? match.participant2_id
-            if (!participantId) continue
+            if (!participantId) return
             await supabase.from('matches').update({ status: 'bye', winner_id: participantId }).eq('id', match.id)
             match.status = 'bye'
             match.winner_id = participantId
             const slot = Math.floor((match.match_number - 1) / 2)
             const next = round2[slot]
-            if (!next) continue
+            if (!next) return
             const isP1Slot = match.match_number % 2 === 1
             if (isP1Slot && !next.participant1_id) {
               await supabase.from('matches').update({ participant1_id: participantId }).eq('id', next.id)
@@ -230,7 +232,7 @@ export default function ScoresPage() {
               await supabase.from('matches').update({ participant2_id: participantId }).eq('id', next.id)
               next.participant2_id = participantId
             }
-          }
+          }))
         }
       }
     }
@@ -497,7 +499,8 @@ export default function ScoresPage() {
     const K = advanceCount
     const offset = Math.floor(G / 2)
 
-    for (let i = 0; i < advancers.length; i++) {
+    // 진출자마다 각기 다른 슬롯/필드를 갱신하므로 병렬 처리 가능
+    await Promise.all(advancers.map(async (advancerId, i) => {
       const r = i
       let slotIndex: number
 
@@ -521,12 +524,12 @@ export default function ScoresPage() {
       }
 
       const targetMatch = mainMatches[Math.floor(slotIndex / 2)]
-      if (!targetMatch) continue
+      if (!targetMatch) return
       const isP1 = slotIndex % 2 === 0
       await supabase.from('matches').update(
-        isP1 ? { participant1_id: advancers[i] } : { participant2_id: advancers[i] }
+        isP1 ? { participant1_id: advancerId } : { participant2_id: advancerId }
       ).eq('id', targetMatch.id)
-    }
+    }))
   }
 
   async function confirmRanking(groupId: string) {

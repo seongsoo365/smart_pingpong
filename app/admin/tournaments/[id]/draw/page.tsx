@@ -97,19 +97,18 @@ export default function DrawPage() {
 
     setLoading(true)
 
+    const participantTable = isTeam ? 'teams' : 'players'
+
     // Reset group_id on participants FIRST — FK on teams/players.group_id → groups(id)
     // prevents group deletion if group_id is still set
-    if (isTeam) {
-      await supabase.from('teams').update({ group_id: null }).eq('division_id', selectedDivId)
-    } else {
-      await supabase.from('players').update({ group_id: null }).eq('division_id', selectedDivId)
-    }
+    await supabase.from(participantTable).update({ group_id: null }).eq('division_id', selectedDivId)
 
-    // Clear existing matches and groups
+    // Clear existing matches and groups (그룹별 순차 삭제 대신 in()으로 한 번에 처리)
     if (prelim) {
       const { data: existingGroups } = await supabase.from('groups').select('id').eq('phase_id', prelim.id)
-      for (const g of existingGroups ?? []) {
-        await supabase.from('matches').delete().eq('group_id', g.id)
+      const existingGroupIds = (existingGroups ?? []).map(g => g.id)
+      if (existingGroupIds.length > 0) {
+        await supabase.from('matches').delete().in('group_id', existingGroupIds)
       }
       await supabase.from('groups').delete().eq('phase_id', prelim.id)
     }
@@ -117,33 +116,27 @@ export default function DrawPage() {
 
     if (prelim) {
       const distributed = distributeIntoGroups(participants as (Player | Team)[], groupCount)
-      for (let gi = 0; gi < distributed.length; gi++) {
-        const groupParticipants = distributed[gi]
-        if (groupParticipants.length === 0) continue
+        .map((groupParticipants, gi) => ({ groupParticipants, gi }))
+        .filter(({ groupParticipants }) => groupParticipants.length > 0)
 
-        const { data: group } = await supabase
-          .from('groups')
-          .insert({ phase_id: prelim.id, name: `${String.fromCharCode(65 + gi)}조`, display_order: gi })
-          .select().single()
+      // 조 생성을 한 번의 batch insert로 처리
+      const { data: insertedGroups } = await supabase
+        .from('groups')
+        .insert(distributed.map(({ gi }) => ({ phase_id: prelim.id, name: `${String.fromCharCode(65 + gi)}조`, display_order: gi })))
+        .select('id, display_order')
 
-        if (!group) continue
+      // 조별 참가자 배정 + 리그 경기 생성을 조 단위로 병렬 처리
+      await Promise.all((insertedGroups ?? []).map(async (group) => {
+        const entry = distributed.find(d => d.gi === group.display_order)
+        if (!entry) return
 
-        // Assign participants to group
-        for (const p of groupParticipants) {
-          if (isTeam) {
-            await supabase.from('teams').update({ group_id: group.id }).eq('id', p.id)
-          } else {
-            await supabase.from('players').update({ group_id: group.id }).eq('id', p.id)
-          }
-        }
-
-        // Generate round robin matches
-        const ids = groupParticipants.map(p => p.id)
+        const ids = entry.groupParticipants.map(p => p.id)
         const rounds = generateRoundRobin(ids)
+        const matchRows: Record<string, unknown>[] = []
         let matchNum = 1
         for (let ri = 0; ri < rounds.length; ri++) {
           for (const [p1, p2] of rounds[ri]) {
-            await supabase.from('matches').insert({
+            matchRows.push({
               phase_id: prelim.id,
               group_id: group.id,
               round: ri + 1,
@@ -155,7 +148,12 @@ export default function DrawPage() {
             })
           }
         }
-      }
+
+        await Promise.all([
+          supabase.from(participantTable).update({ group_id: group.id }).in('id', ids),
+          matchRows.length > 0 ? supabase.from('matches').insert(matchRows) : Promise.resolve(),
+        ])
+      }))
 
       // advanceCount가 변경된 경우 DB에 저장
       if (prelim.advancement_count !== advanceCount) {
@@ -164,14 +162,15 @@ export default function DrawPage() {
           .eq('id', prelim.id)
       }
 
-      // Generate main bracket — ALL rounds (TBD slots)
+      // Generate main bracket — ALL rounds (TBD slots), 한 번의 batch insert로 생성
       const totalAdvancing = groupCount * advanceCount
       const mainSlots = nextPowerOfTwo(totalAdvancing)
       const mainTotalRounds = getBracketRounds(totalAdvancing)
+      const mainMatchRows: Record<string, unknown>[] = []
       for (let round = 1; round <= mainTotalRounds; round++) {
         const matchCount = mainSlots / Math.pow(2, round)
         for (let matchNum = 1; matchNum <= matchCount; matchNum++) {
-          await supabase.from('matches').insert({
+          mainMatchRows.push({
             phase_id: main.id,
             round,
             match_number: matchNum,
@@ -179,6 +178,9 @@ export default function DrawPage() {
             status: 'pending',
           })
         }
+      }
+      if (mainMatchRows.length > 0) {
+        await supabase.from('matches').insert(mainMatchRows)
       }
     } else {
       // Direct bracket (no preliminary)
@@ -189,7 +191,7 @@ export default function DrawPage() {
       const totalRounds = getBracketRounds(participants.length)
       const slots = nextPowerOfTwo(participants.length)
 
-      const matchIdMap = new Map<string, string>()
+      const matchRows: Record<string, unknown>[] = []
       for (let round = 1; round <= totalRounds; round++) {
         const matchCount = slots / Math.pow(2, round)
         for (let matchNum = 1; matchNum <= matchCount; matchNum++) {
@@ -206,13 +208,18 @@ export default function DrawPage() {
             payload = { ...payload, participant1_id: p1, participant2_id: p2,
               status: isBye ? 'bye' : 'pending', winner_id: isBye ? p1 : null }
           }
-          const { data: m } = await supabase.from('matches').insert(payload).select('id').single()
-          if (m) matchIdMap.set(`${round}-${matchNum}`, m.id)
+          matchRows.push(payload)
         }
       }
 
-      // Advance bye winners from round 1 into round 2 slots
+      // 전체 라운드의 매치를 한 번의 batch insert로 생성 (기존: 매치마다 순차 insert)
+      const { data: insertedMatches } = await supabase.from('matches').insert(matchRows).select('id, round, match_number')
+      const matchIdMap = new Map<string, string>()
+      for (const m of insertedMatches ?? []) matchIdMap.set(`${m.round}-${m.match_number}`, m.id)
+
+      // Advance bye winners from round 1 into round 2 slots (병렬 처리)
       if (totalRounds > 1) {
+        const updates: PromiseLike<unknown>[] = []
         for (let matchNum = 1; matchNum <= slots / 2; matchNum++) {
           const [p1, p2] = bracket[matchNum - 1]
           if (p1 && !p2) {
@@ -220,12 +227,15 @@ export default function DrawPage() {
             const isP1Slot = matchNum % 2 === 1
             const nextMatchId = matchIdMap.get(`2-${nextMatchNum}`)
             if (nextMatchId) {
-              await supabase.from('matches').update(
-                isP1Slot ? { participant1_id: p1 } : { participant2_id: p1 }
-              ).eq('id', nextMatchId)
+              updates.push(
+                supabase.from('matches').update(
+                  isP1Slot ? { participant1_id: p1 } : { participant2_id: p1 }
+                ).eq('id', nextMatchId)
+              )
             }
           }
         }
+        await Promise.all(updates)
       }
     }
 

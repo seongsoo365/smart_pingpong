@@ -1,5 +1,7 @@
+import Link from 'next/link'
 import { createClientSafe } from '@/lib/supabase/server'
 import TournamentCard from '@/components/tournament/TournamentCard'
+import TournamentSearchForm from '@/components/tournament/TournamentSearchForm'
 import type { Tournament, TournamentStatus } from '@/lib/types'
 
 const STATUS_FILTER: { value: TournamentStatus | 'all'; label: string }[] = [
@@ -21,10 +23,10 @@ export default async function TournamentsPage({
   const q = sp.q
 
   const supabase = await createClientSafe()
-  let tournaments: Tournament[] = []
+  let tournaments: Pick<Tournament, 'id' | 'name' | 'venue' | 'start_date' | 'end_date' | 'status'>[] = []
 
   if (supabase) {
-    let query = supabase.from('tournaments').select('*')
+    let query = supabase.from('tournaments').select('id, name, venue, start_date, end_date, status')
       .order('start_date', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false })
     if (status && status !== 'all') query = query.eq('status', status as TournamentStatus)
@@ -47,13 +49,10 @@ export default async function TournamentsPage({
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <form className="flex-1 min-w-48">
-          <input name="q" defaultValue={q} placeholder="대회명 검색..."
-            className="glass border border-white/10 rounded-xl px-4 py-2 text-sm bg-transparent outline-none focus:border-primary transition-colors w-full" />
-        </form>
+        <TournamentSearchForm defaultValue={q} />
         <div className="flex gap-2 flex-wrap">
           {STATUS_FILTER.map(({ value, label }) => (
-            <a key={value}
+            <Link key={value}
               href={`/tournaments?status=${value}${year ? `&year=${year}` : ''}${q ? `&q=${q}` : ''}`}
               className={`px-3 py-2 rounded-xl text-xs font-medium transition-colors ${
                 (status ?? 'all') === value
@@ -61,12 +60,12 @@ export default async function TournamentsPage({
                   : 'glass text-muted-foreground hover:text-foreground hover:bg-white/10'
               }`}>
               {label}
-            </a>
+            </Link>
           ))}
         </div>
         <div className="flex gap-2 flex-wrap">
           {years.map(y => (
-            <a key={y}
+            <Link key={y}
               href={`/tournaments?${status ? `status=${status}&` : ''}year=${y}${q ? `&q=${q}` : ''}`}
               className={`px-3 py-2 rounded-xl text-xs font-medium transition-colors ${
                 String(year) === String(y)
@@ -74,7 +73,7 @@ export default async function TournamentsPage({
                   : 'glass text-muted-foreground hover:text-foreground hover:bg-white/10'
               }`}>
               {y}
-            </a>
+            </Link>
           ))}
         </div>
       </div>

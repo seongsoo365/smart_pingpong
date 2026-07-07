@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, ChevronDown } from 'lucide-react'
 import { createClientSafe } from '@/lib/supabase/server'
+import { MATCH_SELECT } from '@/lib/supabase/selects'
 import DivisionRealtimeContent from '@/components/tournament/DivisionRealtimeContent'
 import type { Player, Team, Match, Group, Standing } from '@/lib/types'
 
@@ -31,27 +32,18 @@ export default async function DivisionDetailPage({
   const supabase = await createClientSafe()
   if (!supabase) notFound()
 
-  const [{ data: division }, { data: tournament }] = await Promise.all([
-    supabase.from('divisions').select('*').eq('id', divId).single(),
+  const [{ data: division }, { data: tournament }, { data: phases }, { data: players }, { data: teams }] = await Promise.all([
+    supabase.from('divisions').select('id, name, gender, match_type, team_match_format').eq('id', divId).single(),
     supabase.from('tournaments').select('name, status').eq('id', tournamentId).single(),
+    supabase.from('tournament_phases').select('*').eq('division_id', divId).order('phase_order'),
+    supabase.from('players').select('id, name, club').eq('division_id', divId).order('seed', { nullsFirst: false }),
+    supabase.from('teams').select('id, name, club, members:team_members(id, player_name, player_order, player_level)').eq('division_id', divId),
   ])
   if (!division || !tournament) notFound()
 
-  const { data: phases } = await supabase
-    .from('tournament_phases').select('*').eq('division_id', divId).order('phase_order')
-
   const isIndividual = division.match_type === 'individual'
-
-  const [{ data: players }, { data: teams }] = await Promise.all([
-    isIndividual
-      ? supabase.from('players').select('*').eq('division_id', divId).order('seed', { nullsFirst: false })
-      : Promise.resolve({ data: [] as Player[] }),
-    !isIndividual
-      ? supabase.from('teams').select('*, members:team_members(*)').eq('division_id', divId)
-      : Promise.resolve({ data: [] as Team[] }),
-  ])
-
-  const participants: (Player | Team)[] = isIndividual ? (players ?? []) : (teams ?? [])
+  // 이 페이지에서는 id/name/club만 사용하므로 select를 좁혔음 — Player/Team 전체 필드는 필요 없음
+  const participants = (isIndividual ? (players ?? []) : (teams ?? [])) as unknown as (Player | Team)[]
   const prelim = phases?.find(p => p.phase_type === 'preliminary')
   const main = phases?.find(p => p.phase_type === 'main')
 
@@ -60,10 +52,10 @@ export default async function DivisionDetailPage({
       ? supabase.from('groups').select('*').eq('phase_id', prelim.id).order('display_order')
       : Promise.resolve({ data: [] as Group[] }),
     prelim
-      ? supabase.from('matches').select('*, sets:match_sets(*)').eq('phase_id', prelim.id)
+      ? supabase.from('matches').select(MATCH_SELECT).eq('phase_id', prelim.id)
       : Promise.resolve({ data: [] as Match[] }),
     main
-      ? supabase.from('matches').select('*, sets:match_sets(*)').eq('phase_id', main.id).order('round').order('match_number')
+      ? supabase.from('matches').select(MATCH_SELECT).eq('phase_id', main.id).order('round').order('match_number')
       : Promise.resolve({ data: [] as Match[] }),
   ])
 

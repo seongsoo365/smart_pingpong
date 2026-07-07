@@ -1,14 +1,12 @@
 import { redirect } from 'next/navigation'
-import { createClientSafe } from '@/lib/supabase/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import AddAdminForm from './AddAdminForm'
 import UserList from './UserList'
 import type { UserProfile } from '@/lib/types'
 
 export default async function SystemUsersPage() {
-  const supabase = await createClientSafe()
+  const { supabase, user } = await getAuthUser()
   if (!supabase) redirect('/login')
-
-  const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
   const { data: profile } = await supabase

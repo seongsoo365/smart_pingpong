@@ -10,7 +10,9 @@ const statusLabel: Record<string, string> = {
   completed: '종료',
 }
 
-export default function TournamentCard({ tournament }: { tournament: Tournament }) {
+type TournamentCardData = Pick<Tournament, 'id' | 'name' | 'venue' | 'start_date' | 'end_date' | 'status'>
+
+export default function TournamentCard({ tournament }: { tournament: TournamentCardData }) {
   const { id, name, venue, start_date, end_date, status } = tournament
 
   return (

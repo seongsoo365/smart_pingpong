@@ -1,13 +1,11 @@
 import { redirect } from 'next/navigation'
-import { createClientSafe } from '@/lib/supabase/server'
+import { getAuthUser } from '@/lib/supabase/server'
 import AdminSidebar from '@/components/layout/AdminSidebar'
 import MobileBottomNav from '@/components/layout/MobileBottomNav'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClientSafe()
+  const { supabase, user } = await getAuthUser()
   if (!supabase) redirect('/login')
-
-  const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
   return (
