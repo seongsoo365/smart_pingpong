@@ -141,6 +141,19 @@
   border: 1px solid oklch(0 0 0 / 8%);
 }
 
+/* 모바일 하단 네비게이션 safe-area 처리 */
+:root {
+  --mobile-nav-height: 4rem; /* MobileBottomNav의 h-16 콘텐츠 영역 */
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.pb-safe-nav {
+  padding-bottom: calc(var(--mobile-nav-height) + 1.5rem + env(safe-area-inset-bottom));
+}
+
 /* Gradient background */
 .dark .gradient-bg {
   background: radial-gradient(ellipse at top left, oklch(0.25 0.08 260 / 40%) 0%, transparent 50%),

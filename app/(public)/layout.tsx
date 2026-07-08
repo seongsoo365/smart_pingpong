@@ -5,7 +5,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
   return (
     <div className="flex flex-col min-h-dvh">
       <Header />
-      <main className="flex-1 pb-20 md:pb-0">
+      <main className="flex-1 pb-safe-nav md:pb-0">
         {children}
       </main>
       <MobileBottomNav />

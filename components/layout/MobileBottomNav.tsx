@@ -17,7 +17,7 @@ export default function MobileBottomNav() {
   const pathname = usePathname()
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 glass border-t border-white/10 pb-safe md:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border pb-safe md:hidden">
       <div className="flex items-center justify-around h-16">
         {navItems.map(({ href, icon: Icon, label }) => {
           const active = pathname === href || (href !== '/' && pathname.startsWith(href))
