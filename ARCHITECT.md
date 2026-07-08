@@ -342,6 +342,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 > **주의:** 하드코딩된 `rgba(255,255,255,0.x)` / `border-white/N` 사용 금지. 대신 `border-border`, `bg-muted`, `text-muted-foreground` 등 CSS 변수 토큰을 사용해야 테마 전환 시 정상 동작함.
 
+### 모바일 flex 레이아웃 주의사항
+
+`flex` 행 안에 `<select>`나 `<input>`을 `flex-1`로 넣을 때 `min-w-0`을 함께 지정하지 않으면, 네이티브 컨트롤의 기본 최소너비 때문에 좁은 화면(모바일)에서 줄어들지 못하고 행이 부모 폭을 넘어간다. 부모에 `overflow-hidden`이 걸려 있는 카드(예: 단체전 팀 카드, `app/admin/tournaments/[id]/players/page.tsx`)에서는 넘친 요소가 통째로 잘려 "아예 안 보이는" 버그로 이어지므로, `flex-1` select/input에는 반드시 `min-w-0`을 함께 붙일 것.
+
 ---
 
 ## 환경 변수

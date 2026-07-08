@@ -138,6 +138,8 @@ tournament (대회)
 - `division.match_type === 'team'`이면 `teams` + `team_members` 테이블 CRUD (팀 목록, 팀 추가, 팀원 수정, 시드)
 - 팀원 수 제약은 `division.team_match_format`을 `TEAM_SIZE` 맵으로 조회하여 min/max 적용
 - 부수 탭 버튼에 "단체" 레이블을 표시해 구분
+- 목록의 연필(Pencil) 아이콘을 누르면 이름/소속/메모와 함께 **부수(division) 변경 select**가 나타남 — 같은 `match_type`의 다른 부수를 선택해 저장하면 해당 선수/팀이 그 부수로 이동함
+- 모바일 좁은 화면에서 이 select·입력칸이 `overflow-hidden`(팀 카드)에 의해 잘려 보이지 않는 버그가 있었음 → `flex-1` 요소에 `min-w-0`을 명시해 해결 (아래 UI 규칙의 모바일 flex 레이아웃 주의사항 참고)
 
 `tournament_phases`는 `format`(round_robin / single_elimination), `games_per_match`, `points_per_game`, `advancement_count`를 정의합니다. 대진 페이지에서 브라켓을 생성하려면 이 값들이 미리 존재해야 합니다.
 
