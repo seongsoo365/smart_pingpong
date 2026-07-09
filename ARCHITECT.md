@@ -110,7 +110,7 @@ smart_pingpong/
 │   ├── types/index.ts                  # 전체 TypeScript 타입 정의
 │   ├── utils.ts                        # cn() 유틸
 │   └── utils/
-│       ├── bracket.ts                  # 시드 브라켓 생성 (generateSeededBracket, getBracketRounds)
+│       ├── bracket.ts                  # 시드 브라켓 생성 (generateSeededBracket, getBracketRounds, getPrelimSlotPlacements)
 │       ├── roundrobin.ts               # 원형법 리그 일정 (distributeIntoGroups)
 │       ├── standings.ts                # 순위 계산 + 동률 감지 (hasTieAtBoundary, getTieGroups)
 │       ├── myGames.ts                  # 내 일회성 게임 ID localStorage 관리 (addMyGame, getMyGameIds, removeMyGame)
@@ -305,7 +305,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 | 파일 | 역할 |
 |------|------|
-| `lib/utils/bracket.ts` | `generateSeededBracket(ids)` → `[p1\|null, p2\|null][]`, `getBracketRounds(n)`, `nextPowerOfTwo(n)` |
+| `lib/utils/bracket.ts` | `generateSeededBracket(ids)` → 표준 시드 배치(1·2번 시드 앞뒤 배치, 상위 시드 교차 분산) `[p1\|null, p2\|null][]`, `getBracketRounds(n)`, `nextPowerOfTwo(n)`, `getPrelimSlotPlacements(G, K)` → 예선 (조, 순위)→본선 1라운드 슬롯 매핑 (조 1위 쿼터 분산 + 부전승 상위 시드 배정 + 같은 조 1라운드 금지·구역 몰림 탐욕 분산, 진출 배정·예상 라벨 공용) |
 | `lib/utils/roundrobin.ts` | `distributeIntoGroups(players, n)` 뱀 시드 방식 |
 | `lib/utils/standings.ts` | 승수→세트 득실→점수 득실 순위, `hasTieAtBoundary()`, `getTieGroups()` |
 | `lib/utils/myGames.ts` | 비로그인 사용자의 등록 게임 ID를 localStorage에 보관 (`addMyGame`, `getMyGameIds`, `removeMyGame`) |

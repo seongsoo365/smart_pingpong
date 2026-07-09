@@ -9,6 +9,7 @@ import MatchSchedule from '@/components/tournament/MatchSchedule'
 import { createClient } from '@/lib/supabase/client'
 import { MATCH_SELECT } from '@/lib/supabase/selects'
 import { calculateStandings } from '@/lib/utils/standings'
+import { getPrelimSlotPlacements } from '@/lib/utils/bracket'
 import { cn } from '@/lib/utils'
 import type { Group, Match, MatchSet, Player, Standing, Team, TournamentPhase } from '@/lib/types'
 
@@ -113,32 +114,19 @@ export default function DivisionRealtimeContent({
     }
   }, [divId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 예선 연결 1라운드 TBD 슬롯에 조별 예상 배정 라벨 계산 (교차 시드 방식)
+  // 예선 연결 1라운드 TBD 슬롯에 조별 예상 배정 라벨 계산
+  // (실제 진출 배정과 동일한 getPrelimSlotPlacements 매핑 사용)
   function getProjectedLabel(matchNumber: number, isP2: boolean): string | null {
     if (!prelim || groups.length === 0) return null
-    const K = prelim.advancement_count ?? 2
     const sortedGroups = [...groups].sort((a, b) => a.display_order - b.display_order)
-    const G = sortedGroups.length
-    const offset = Math.floor(G / 2)
+    const placements = getPrelimSlotPlacements(sortedGroups.length, prelim.advancement_count ?? 2)
     const slotIndex = (matchNumber - 1) * 2 + (isP2 ? 1 : 0)
-
-    if (slotIndex % 2 === 0) {
-      const matchIdx = slotIndex / 2
-      const r = Math.floor(matchIdx / G)
-      const g = matchIdx % G
-      const group = sortedGroups[g]
-      if (!group || r >= K) return null
-      return `${group.name} ${r + 1}위`
-    } else {
-      const matchIdx = (slotIndex - 1) / 2
-      const p = Math.floor(matchIdx / G)
-      const topG = matchIdx % G
-      const r = K - 1 - p
-      const botG = (topG + offset) % G
-      const group = sortedGroups[botG]
-      if (!group || r < 0 || r >= K) return null
-      return `${group.name} ${r + 1}위`
-    }
+    if (slotIndex >= placements.length) return null
+    const placement = placements[slotIndex]
+    if (!placement) return '부전승' // 매핑상 영구히 비는 슬롯 = 구조적 부전승
+    const group = sortedGroups[placement.group]
+    if (!group) return null
+    return `${group.name} ${placement.rank + 1}위`
   }
 
   const hasPrelimPhase = groups.length > 0

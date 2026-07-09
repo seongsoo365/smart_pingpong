@@ -6,7 +6,7 @@ import { ChevronLeft, CheckCircle, Pencil, Check, X, ChevronDown, ChevronUp, Ale
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { calculateStandings, hasTieAtBoundary, getTieGroups } from '@/lib/utils/standings'
-import { getRoundName } from '@/lib/utils/bracket'
+import { getRoundName, getPrelimSlotPlacements } from '@/lib/utils/bracket'
 import GroupMatrix from '@/components/tournament/GroupMatrix'
 import { cn } from '@/lib/utils'
 import type { Division, Player, Team, TournamentPhase, Match, Group, MatchSet, TeamMatchFormat } from '@/lib/types'
@@ -280,40 +280,24 @@ export default function ScoresPage() {
   const pMap = new Map(players.map(p => [p.id, p]))
   const tMap = new Map(teams.map(t => [t.id, t]))
 
-  // 본선 1라운드 슬롯에 어느 조 몇 위가 배정될지 역산 (조별 교차 시드 방식)
+  // 본선 1라운드 슬롯에 어느 조 몇 위가 배정될지 계산
+  // (실제 진출 배정 advanceGroup과 동일한 getPrelimSlotPlacements 매핑 사용)
   function getProjectedLabel(matchNumber: number, isP2: boolean): string | null {
     const prelimPhase = phases.find(p => p.phase_type === 'preliminary')
     if (!prelimPhase) return null
-    const advanceCount = prelimPhase.advancement_count ?? 2
     const prelimGroups = groups
       .filter(g => g.phase_id === prelimPhase.id)
       .sort((a, b) => a.display_order - b.display_order)
     if (prelimGroups.length === 0) return null
 
-    const G = prelimGroups.length
-    const K = advanceCount
-    const offset = Math.floor(G / 2)
+    const placements = getPrelimSlotPlacements(prelimGroups.length, prelimPhase.advancement_count ?? 2)
     const slotIndex = (matchNumber - 1) * 2 + (isP2 ? 1 : 0)
-
-    if (slotIndex % 2 === 0) {
-      // 짝수 슬롯: 상위 절반 순위 (조 상위 → 다른 조 하위와 대전)
-      const matchIdx = slotIndex / 2
-      const r = Math.floor(matchIdx / G)
-      const g = matchIdx % G
-      const group = prelimGroups[g]
-      if (!group || r >= K) return null
-      return `${group.name} ${r + 1}위`
-    } else {
-      // 홀수 슬롯: 하위 절반 순위
-      const matchIdx = (slotIndex - 1) / 2
-      const p = Math.floor(matchIdx / G)
-      const topG = matchIdx % G
-      const r = K - 1 - p
-      const botG = (topG + offset) % G
-      const group = prelimGroups[botG]
-      if (!group || r < 0 || r >= K) return null
-      return `${group.name} ${r + 1}위`
-    }
+    if (slotIndex >= placements.length) return null
+    const placement = placements[slotIndex]
+    if (!placement) return '부전승' // 매핑상 영구히 비는 슬롯 = 구조적 부전승
+    const group = prelimGroups[placement.group]
+    if (!group) return null
+    return `${group.name} ${placement.rank + 1}위`
   }
 
   // ─── 편집 시작 ──────────────────────────────────────────────────────────────
@@ -495,33 +479,13 @@ export default function ScoresPage() {
     const groupIndex = prelimGroups.findIndex(g => g.id === groupId)
     if (groupIndex === -1) return
 
-    const G = prelimGroups.length
-    const K = advanceCount
-    const offset = Math.floor(G / 2)
+    // (조, 순위) → 본선 슬롯 매핑 — 예상 라벨(getProjectedLabel)과 동일한 순수 함수
+    const placements = getPrelimSlotPlacements(prelimGroups.length, advanceCount)
 
     // 진출자마다 각기 다른 슬롯/필드를 갱신하므로 병렬 처리 가능
     await Promise.all(advancers.map(async (advancerId, i) => {
-      const r = i
-      let slotIndex: number
-
-      if (r < K - 1 - r) {
-        // 상위 절반: 상위 시드가 다른 조 하위 시드와 대전
-        slotIndex = (r * G + groupIndex) * 2
-      } else if (r > K - 1 - r) {
-        // 하위 절반: 상위 절반의 상대방 슬롯
-        const p = K - 1 - r
-        const topGroupIndex = (groupIndex + G - offset) % G
-        slotIndex = (p * G + topGroupIndex) * 2 + 1
-      } else {
-        // 중간 순위 (K 홀수): 오프셋 조와 페어링
-        const partnerGroupIndex = (groupIndex + offset) % G
-        if (groupIndex <= partnerGroupIndex) {
-          slotIndex = (r * G + groupIndex) * 2
-        } else {
-          const topGroupIndex = (groupIndex + G - offset) % G
-          slotIndex = (r * G + topGroupIndex) * 2 + 1
-        }
-      }
+      const slotIndex = placements.findIndex(p => p !== null && p.group === groupIndex && p.rank === i)
+      if (slotIndex === -1) return
 
       const targetMatch = mainMatches[Math.floor(slotIndex / 2)]
       if (!targetMatch) return

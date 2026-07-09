@@ -152,13 +152,13 @@ tournament (대회)
 
 **점수 저장** (`app/admin/tournaments/[id]/scores/page.tsx`):
 - 본선 경기 결과 저장 시 승자를 다음 라운드 해당 슬롯에 자동으로 채움
-- 예선 조의 모든 경기가 완료되면 `checkPrelimAdvancement()`가 실행되어 순위에 따라 본선 1라운드 슬롯을 채움
+- 예선 조의 모든 경기가 완료되면 `checkPrelimAdvancement()`가 실행되어 순위에 따라 본선 1라운드 슬롯을 채움 (슬롯 위치는 `getPrelimSlotPlacements()` 매핑 사용)
 - 경계에 동률이 있으면 자동 진출을 차단하고 수동 순위 확정 UI를 표시
 - `loadData()` 호출마다 본선 부전승 전파도 재확인
 
 ### 브라켓 및 일정 유틸리티
 
-- `lib/utils/bracket.ts` — 시드 단일 토너먼트. `generateSeededBracket(ids)`는 `[p1|null, p2|null][]` 반환; `null`은 부전승. `getBracketRounds(n)`과 `nextPowerOfTwo(n)`으로 전체 라운드를 한 번에 미리 생성.
+- `lib/utils/bracket.ts` — 시드 단일 토너먼트. `generateSeededBracket(ids)`는 표준 시드 배치(1번 시드 맨 앞, 2번 시드 맨 뒤 — 상위 시드끼리는 결승에 가까운 라운드에서만 만나도록 앞뒤 교차 분산)로 `[p1|null, p2|null][]` 반환; `null`은 부전승(항상 p2 쪽). `getBracketRounds(n)`과 `nextPowerOfTwo(n)`으로 전체 라운드를 한 번에 미리 생성. `getPrelimSlotPlacements(G, K)`는 예선 (조, 순위) → 본선 1라운드 슬롯 매핑을 계산하는 순수 함수(캐시됨, 반환 배열 변형 금지) — 실제 진출 배정(`advanceGroup`)과 예상 라벨 표시(`getProjectedLabel`) 양쪽에서 반드시 이 함수를 사용해야 배정·표시가 일치함. 각 조 1위가 서로 다른 쿼터에 분산되고, 진출 총원이 2의 거듭제곱이 아니면 상위 시드가 부전승을 받으며, 같은 조끼리는 1라운드 대결 금지 + 같은 절반/쿼터 몰림을 동일 순위 교환(탐욕 보정)으로 최대한 분산.
 - `lib/utils/roundrobin.ts` — 원형법 일정 생성; `distributeIntoGroups(players, n)`은 뱀 시드 방식 사용.
 - `lib/utils/standings.ts` — 승수 → 세트 득실 → 점수 득실 순으로 순위 계산. `hasTieAtBoundary()`와 `getTieGroups()`로 동률 감지.
 - `lib/utils/myGames.ts` — 비로그인 사용자가 등록한 게임 ID를 `localStorage`에 보관. `addMyGame(id)` / `getMyGameIds()` / `removeMyGame(id)`. SSR 환경에서 안전하게 동작(`typeof window` 가드 포함).
