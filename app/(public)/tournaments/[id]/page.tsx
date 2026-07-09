@@ -68,6 +68,8 @@ export default async function TournamentDetailPage({
   const showTeams      = status === 'registration'
   const showBracket    = status === 'in_progress' || status === 'completed'
   const showQna        = status === 'draft' || status === 'registration'
+  // 진행중/종료 시에는 대진표를 요강·참가자 정보보다 위로 올려 집중도를 높임
+  const focusBracket   = showBracket
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
@@ -104,144 +106,152 @@ export default async function TournamentDetailPage({
 
       <MyRegistrationStatus tournamentId={id} />
 
-      {tournament.regulations && (
-        <details open={showRegulations} className="glass rounded-2xl border border-white/10 group">
-          <summary className="flex items-center justify-between px-6 py-4 cursor-pointer list-none select-none hover:bg-white/[0.03] transition-colors rounded-2xl">
-            <h2 className="text-lg font-bold">대회요강</h2>
-            <ChevronDown className="w-5 h-5 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
-          </summary>
-          <div className="px-6 pb-5">
-            <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
-              {tournament.regulations}
-            </p>
-          </div>
-        </details>
-      )}
+      {(() => {
+        const regulationsSection = tournament.regulations && (
+          <details key="regulations" open={showRegulations} className="glass rounded-2xl border border-white/10 group">
+            <summary className="flex items-center justify-between px-6 py-4 cursor-pointer list-none select-none hover:bg-white/[0.03] transition-colors rounded-2xl">
+              <h2 className="text-lg font-bold">대회요강</h2>
+              <ChevronDown className="w-5 h-5 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
+            </summary>
+            <div className="px-6 pb-5">
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                {tournament.regulations}
+              </p>
+            </div>
+          </details>
+        )
 
-      {teamDivisionsWithTeams.length > 0 && (
-        <details open={showTeams} className="glass rounded-2xl border border-white/10 group overflow-hidden">
-          <summary className="flex items-center justify-between px-6 py-4 cursor-pointer list-none select-none hover:bg-white/[0.03] transition-colors">
-            <h2 className="text-lg font-bold">참가 팀 현황</h2>
-            <ChevronDown className="w-5 h-5 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
-          </summary>
-          <div className="space-y-4 px-4 pb-4">
-            {teamDivisionsWithTeams.map(div => {
-              const max = div.max_teams
-              const approved = div.approvedTeams.length
-              const pending = div.pendingTeams.length
-              const isFull = max !== null && max !== undefined && approved >= max
-              return (
-                <div key={div.id} className="glass rounded-2xl border border-white/10 overflow-hidden">
-                  <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 bg-white/5">
-                    <span className="font-semibold text-sm">
-                      {genderLabel[div.gender]} {div.name}
-                    </span>
-                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <ShieldCheck className="w-3.5 h-3.5 text-primary" />
-                        승인 {approved}{max ? `/${max}` : ''}팀
+        const teamsSection = teamDivisionsWithTeams.length > 0 && (
+          <details key="teams" open={showTeams} className="glass rounded-2xl border border-white/10 group overflow-hidden">
+            <summary className="flex items-center justify-between px-6 py-4 cursor-pointer list-none select-none hover:bg-white/[0.03] transition-colors">
+              <h2 className="text-lg font-bold">참가 팀 현황</h2>
+              <ChevronDown className="w-5 h-5 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
+            </summary>
+            <div className="space-y-4 px-4 pb-4">
+              {teamDivisionsWithTeams.map(div => {
+                const max = div.max_teams
+                const approved = div.approvedTeams.length
+                const pending = div.pendingTeams.length
+                const isFull = max !== null && max !== undefined && approved >= max
+                return (
+                  <div key={div.id} className="glass rounded-2xl border border-white/10 overflow-hidden">
+                    <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 bg-white/5">
+                      <span className="font-semibold text-sm">
+                        {genderLabel[div.gender]} {div.name}
                       </span>
-                      {pending > 0 && (
+                      <div className="flex items-center gap-3 text-sm text-muted-foreground">
                         <span className="flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5 text-accent" />
-                          대기 {pending}팀
+                          <ShieldCheck className="w-3.5 h-3.5 text-primary" />
+                          승인 {approved}{max ? `/${max}` : ''}팀
                         </span>
-                      )}
-                      {isFull && (
-                        <span className="px-1.5 py-0.5 rounded-full bg-destructive/20 text-destructive">마감</span>
-                      )}
-                    </div>
-                  </div>
-                  {div.approvedTeams.length > 0 ? (
-                    <div className="divide-y divide-white/10">
-                      {div.approvedTeams.map((team, i) => (
-                        <details key={team.id} className="group/team">
-                          <summary className="flex items-center gap-3 px-5 py-3.5 cursor-pointer hover:bg-white/5 transition-colors list-none">
-                            <span className="text-muted-foreground text-sm w-5 shrink-0 text-right">{i + 1}</span>
-                            <div className="flex-1 min-w-0">
-                              <span className="font-medium">{team.name}</span>
-                              {team.club && <span className="text-sm text-muted-foreground ml-2">{team.club}</span>}
-                            </div>
-                            <span className="text-sm text-muted-foreground shrink-0">
-                              {team.members.length}명
-                              <ChevronRight className="w-3.5 h-3.5 inline ml-1 transition-transform group-open/team:rotate-90" />
-                            </span>
-                          </summary>
-                          <div className="px-5 pb-3 pt-1 space-y-1 bg-white/[0.02]">
-                            {team.members.map(m => (
-                              <div key={m.id} className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <span className="w-4 text-right text-xs shrink-0">{m.player_order}</span>
-                                <span className="text-foreground">
-                                  {m.player_name}
-                                  {m.player_level && <span className="text-muted-foreground text-xs ml-0.5">({m.player_level}부)</span>}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </details>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground text-center py-5">아직 승인된 팀이 없습니다.</p>
-                  )}
-                  {div.pendingTeams.length > 0 && (
-                    <div className="border-t border-white/10">
-                      <div className="px-5 py-2 bg-accent/5">
-                        <span className="text-xs font-medium text-accent flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5" /> 대기 순번
-                        </span>
+                        {pending > 0 && (
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-accent" />
+                            대기 {pending}팀
+                          </span>
+                        )}
+                        {isFull && (
+                          <span className="px-1.5 py-0.5 rounded-full bg-destructive/20 text-destructive">마감</span>
+                        )}
                       </div>
+                    </div>
+                    {div.approvedTeams.length > 0 ? (
                       <div className="divide-y divide-white/10">
-                        {div.pendingTeams.map((team, i) => (
-                          <div key={team.id} className="flex items-center gap-3 px-5 py-3.5">
-                            <span className="text-accent text-sm w-5 shrink-0 text-right font-medium">{i + 1}</span>
-                            <div className="flex-1 min-w-0">
-                              <span className="text-muted-foreground">{team.name}</span>
-                              {team.club && <span className="text-sm text-muted-foreground ml-2">{team.club}</span>}
+                        {div.approvedTeams.map((team, i) => (
+                          <details key={team.id} className="group/team">
+                            <summary className="flex items-center gap-3 px-5 py-3.5 cursor-pointer hover:bg-white/5 transition-colors list-none">
+                              <span className="text-muted-foreground text-sm w-5 shrink-0 text-right">{i + 1}</span>
+                              <div className="flex-1 min-w-0">
+                                <span className="font-medium">{team.name}</span>
+                                {team.club && <span className="text-sm text-muted-foreground ml-2">{team.club}</span>}
+                              </div>
+                              <span className="text-sm text-muted-foreground shrink-0">
+                                {team.members.length}명
+                                <ChevronRight className="w-3.5 h-3.5 inline ml-1 transition-transform group-open/team:rotate-90" />
+                              </span>
+                            </summary>
+                            <div className="px-5 pb-3 pt-1 space-y-1 bg-white/[0.02]">
+                              {team.members.map(m => (
+                                <div key={m.id} className="flex items-center gap-2 text-sm text-muted-foreground">
+                                  <span className="w-4 text-right text-xs shrink-0">{m.player_order}</span>
+                                  <span className="text-foreground">
+                                    {m.player_name}
+                                    {m.player_level && <span className="text-muted-foreground text-xs ml-0.5">({m.player_level}부)</span>}
+                                  </span>
+                                </div>
+                              ))}
                             </div>
-                            <span className="text-sm text-muted-foreground shrink-0">
-                              <Users className="w-3 h-3 inline mr-0.5" />{team.members.length}명
-                            </span>
-                          </div>
+                          </details>
                         ))}
                       </div>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </details>
-      )}
-
-      <details open={showBracket} className="glass rounded-2xl border border-white/10 group">
-        <summary className="flex items-center justify-between px-6 py-4 cursor-pointer list-none select-none hover:bg-white/[0.03] transition-colors rounded-2xl">
-          <h2 className="text-lg font-bold">부수별 대진</h2>
-          <ChevronDown className="w-5 h-5 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
-        </summary>
-        <div className="px-4 pb-4 space-y-3">
-          {(divisions?.length ?? 0) > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {divisions?.map((div) => (
-                <Link key={div.id} href={`/tournaments/${id}/divisions/${div.id}`}
-                  className="glass rounded-xl p-4 border border-white/10 hover:bg-white/10 hover:border-primary/30 transition-all group/div">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-bold text-base group-hover/div:text-primary transition-colors">
-                        {genderLabel[div.gender]} {div.name}
+                    ) : (
+                      <p className="text-sm text-muted-foreground text-center py-5">아직 승인된 팀이 없습니다.</p>
+                    )}
+                    {div.pendingTeams.length > 0 && (
+                      <div className="border-t border-white/10">
+                        <div className="px-5 py-2 bg-accent/5">
+                          <span className="text-xs font-medium text-accent flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5" /> 대기 순번
+                          </span>
+                        </div>
+                        <div className="divide-y divide-white/10">
+                          {div.pendingTeams.map((team, i) => (
+                            <div key={team.id} className="flex items-center gap-3 px-5 py-3.5">
+                              <span className="text-accent text-sm w-5 shrink-0 text-right font-medium">{i + 1}</span>
+                              <div className="flex-1 min-w-0">
+                                <span className="text-muted-foreground">{team.name}</span>
+                                {team.club && <span className="text-sm text-muted-foreground ml-2">{team.club}</span>}
+                              </div>
+                              <span className="text-sm text-muted-foreground shrink-0">
+                                <Users className="w-3 h-3 inline mr-0.5" />{team.members.length}명
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <div className="text-xs text-muted-foreground mt-0.5">{matchTypeLabel[div.match_type]}</div>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground group-hover/div:text-primary transition-colors" />
+                    )}
                   </div>
-                </Link>
-              ))}
+                )
+              })}
             </div>
-          ) : (
-            <p className="text-muted-foreground text-sm px-2">아직 부수가 등록되지 않았습니다.</p>
-          )}
-        </div>
-      </details>
+          </details>
+        )
+
+        const bracketSection = (
+          <details key="bracket" open={showBracket} className="glass rounded-2xl border border-white/10 group">
+            <summary className="flex items-center justify-between px-6 py-4 cursor-pointer list-none select-none hover:bg-white/[0.03] transition-colors rounded-2xl">
+              <h2 className="text-lg font-bold">부수별 대진</h2>
+              <ChevronDown className="w-5 h-5 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
+            </summary>
+            <div className="px-4 pb-4 space-y-3">
+              {(divisions?.length ?? 0) > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {divisions?.map((div) => (
+                    <Link key={div.id} href={`/tournaments/${id}/divisions/${div.id}`}
+                      className="glass rounded-xl p-4 border border-white/10 hover:bg-white/10 hover:border-primary/30 transition-all group/div">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-bold text-base group-hover/div:text-primary transition-colors">
+                            {genderLabel[div.gender]} {div.name}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-0.5">{matchTypeLabel[div.match_type]}</div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-muted-foreground group-hover/div:text-primary transition-colors" />
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-sm px-2">아직 부수가 등록되지 않았습니다.</p>
+              )}
+            </div>
+          </details>
+        )
+
+        return focusBracket
+          ? <>{bracketSection}{regulationsSection}{teamsSection}</>
+          : <>{regulationsSection}{teamsSection}{bracketSection}</>
+      })()}
 
       <details open={showQna} className="glass rounded-2xl border border-white/10 group">
         <summary className="flex items-center justify-between px-6 py-4 cursor-pointer list-none select-none hover:bg-white/[0.03] transition-colors rounded-2xl">
