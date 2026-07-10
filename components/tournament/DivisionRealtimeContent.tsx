@@ -258,7 +258,12 @@ export default function DivisionRealtimeContent({
             return (
               <div key={group.id} className="space-y-3">
                 <h3 className="font-bold">{group.name}</h3>
-                <StandingsTable rows={rows} advanceCount={prelim?.advancement_count ?? 2} isTeam={!isIndividual} />
+                <StandingsTable
+                  rows={rows}
+                  advanceCount={prelim?.advancement_count ?? 2}
+                  isTeam={!isIndividual}
+                  setDiffFirst={prelim?.ranking_method === 'setdiff_first'}
+                />
                 <details className="group/schedule">
                   <summary className="flex items-center justify-between px-1 py-1 cursor-pointer list-none select-none">
                     <p className="text-xs text-muted-foreground font-medium">경기 순서</p>

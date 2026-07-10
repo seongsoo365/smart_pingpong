@@ -1046,6 +1046,7 @@ export default function ScoresPage() {
                 ...groupMatches.map(m => m.participant2_id),
               ].filter(Boolean))] as string[]
               const groupStandings = calculateStandings(groupMatches, groupIds, currentPhase.ranking_method ?? 'wins_first')
+              const setDiffFirst = currentPhase.ranking_method === 'setdiff_first'
               const tieGroups = getTieGroups(groupStandings)
               const tiedIndices = new Set(tieGroups.flat())
               const advanceCount = currentPhase.advancement_count ?? 2
@@ -1165,9 +1166,14 @@ export default function ScoresPage() {
                           <tr className="border-b border-white/10 text-muted-foreground">
                             <th className="px-3 py-2 text-center font-medium w-8">#</th>
                             <th className="px-3 py-2 text-left font-medium">{isTeamDiv ? '팀명' : '선수명'}</th>
+                            {setDiffFirst && (
+                              <th className="px-3 py-2 text-center font-medium w-16">득실</th>
+                            )}
                             <th className="px-3 py-2 text-center font-medium w-10">승</th>
                             <th className="px-3 py-2 text-center font-medium w-10">패</th>
-                            <th className="px-3 py-2 text-center font-medium w-16">{isTeamDiv ? '게임' : '세트'}</th>
+                            {!setDiffFirst && (
+                              <th className="px-3 py-2 text-center font-medium w-16">{isTeamDiv ? '게임' : '세트'}</th>
+                            )}
                           </tr>
                         </thead>
                         <tbody>
@@ -1194,11 +1200,18 @@ export default function ScoresPage() {
                                     )}
                                   </div>
                                 </td>
+                                {setDiffFirst && (
+                                  <td className="px-3 py-2 text-center font-semibold text-muted-foreground tabular-nums">
+                                    ({s.sets_won}/{s.sets_lost})
+                                  </td>
+                                )}
                                 <td className="px-3 py-2 text-center font-bold text-primary">{s.wins}</td>
                                 <td className="px-3 py-2 text-center text-muted-foreground">{s.losses}</td>
-                                <td className="px-3 py-2 text-center text-muted-foreground tabular-nums">
-                                  {s.sets_won}-{s.sets_lost}
-                                </td>
+                                {!setDiffFirst && (
+                                  <td className="px-3 py-2 text-center text-muted-foreground tabular-nums">
+                                    {s.sets_won}-{s.sets_lost}
+                                  </td>
+                                )}
                               </tr>
                             )
                           })}
