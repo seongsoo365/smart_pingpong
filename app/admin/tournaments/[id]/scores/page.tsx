@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { calculateStandings, hasTieAtBoundary, getTieGroups } from '@/lib/utils/standings'
 import { getRoundName, getPrelimSlotPlacements } from '@/lib/utils/bracket'
+import { formatTeamLevelSum } from '@/lib/utils/team'
 import GroupMatrix from '@/components/tournament/GroupMatrix'
 import { cn } from '@/lib/utils'
 import type { Division, Player, Team, TournamentPhase, Match, Group, MatchSet, TeamMatchFormat } from '@/lib/types'
@@ -117,7 +118,7 @@ export default function ScoresPage() {
     setPhases(ph ?? [])
 
     if (isTeam) {
-      const { data: t } = await supabase.from('teams').select('*').eq('division_id', divId)
+      const { data: t } = await supabase.from('teams').select('*, members:team_members(id, player_level)').eq('division_id', divId)
       setTeams(t ?? [])
       setPlayers([])
     } else {
@@ -279,6 +280,7 @@ export default function ScoresPage() {
 
   const pMap = new Map(players.map(p => [p.id, p]))
   const tMap = new Map(teams.map(t => [t.id, t]))
+  const teamLabel = (t?: Team | null) => t ? `${t.name} ${formatTeamLevelSum(t.members)}` : undefined
 
   // 본선 1라운드 슬롯에 어느 조 몇 위가 배정될지 계산
   // (실제 진출 배정 advanceGroup과 동일한 getPrelimSlotPlacements 매핑 사용)
@@ -722,7 +724,7 @@ export default function ScoresPage() {
         <div key={m.id} className="px-4 py-3 rounded-xl bg-white/5 text-sm space-y-1.5">
           <div className="flex items-center justify-between">
             <span className={m.winner_id === m.participant1_id ? 'font-bold text-primary' : 'text-muted-foreground'}>
-              {t1?.name ?? 'TBD'}
+              {t1 ? teamLabel(t1) : 'TBD'}
             </span>
             <div className="flex items-center gap-2 mx-4">
               <span className="font-bold tabular-nums">{m.score1} : {m.score2}</span>
@@ -731,7 +733,7 @@ export default function ScoresPage() {
               </button>
             </div>
             <span className={m.winner_id === m.participant2_id ? 'font-bold text-primary' : 'text-muted-foreground'}>
-              {t2?.name ?? 'TBD'}
+              {t2 ? teamLabel(t2) : 'TBD'}
             </span>
           </div>
           {mSets.length > 0 && (
@@ -766,7 +768,7 @@ export default function ScoresPage() {
         {/* 팀 헤더 */}
         <div className="flex items-center gap-3 mb-4">
           <div className="flex-1 text-right">
-            <div className="font-bold truncate">{t1?.name ?? 'TBD'}</div>
+            <div className="font-bold truncate">{t1 ? teamLabel(t1) : 'TBD'}</div>
             {t1?.club && <div className="text-xs text-muted-foreground">{t1.club}</div>}
           </div>
           <div className="shrink-0 text-center">
@@ -781,7 +783,7 @@ export default function ScoresPage() {
             )}
           </div>
           <div className="flex-1">
-            <div className="font-bold truncate">{t2?.name ?? 'TBD'}</div>
+            <div className="font-bold truncate">{t2 ? teamLabel(t2) : 'TBD'}</div>
             {t2?.club && <div className="text-xs text-muted-foreground">{t2.club}</div>}
           </div>
         </div>
@@ -881,13 +883,15 @@ export default function ScoresPage() {
 
     const proj1 = !p1 ? getProjectedLabel(m.match_number, false) : null
     const proj2 = !p2 ? getProjectedLabel(m.match_number, true) : null
+    const p1Name = p1 ? (isTeamDiv ? teamLabel(p1 as Team) : p1.name) : undefined
+    const p2Name = p2 ? (isTeamDiv ? teamLabel(p2 as Team) : p2.name) : undefined
 
     return (
       <div key={m.id} className="rounded-xl border border-dashed border-white/20 bg-white/[0.02] px-4 py-3">
         <div className="flex items-center gap-2">
           <div className="flex-1 text-right">
             {p1 ? (
-              <span className="text-sm font-medium">{p1.name}</span>
+              <span className="text-sm font-medium">{p1Name}</span>
             ) : (
               <span className="text-xs text-muted-foreground/60 italic">{proj1 ?? 'TBD'}</span>
             )}
@@ -895,7 +899,7 @@ export default function ScoresPage() {
           <span className="text-muted-foreground/40 text-xs shrink-0 px-2">vs</span>
           <div className="flex-1">
             {p2 ? (
-              <span className="text-sm font-medium">{p2.name}</span>
+              <span className="text-sm font-medium">{p2Name}</span>
             ) : (
               <span className="text-xs text-muted-foreground/60 italic">{proj2 ?? 'TBD'}</span>
             )}
@@ -1047,7 +1051,7 @@ export default function ScoresPage() {
               const advanceCount = currentPhase.advancement_count ?? 2
 
               const getName = (pid: string) => isTeamDiv
-                ? (tMap.get(pid)?.name ?? '?')
+                ? (teamLabel(tMap.get(pid)) ?? '?')
                 : (pMap.get(pid)?.name ?? '?')
               const getClub = (pid: string) => isTeamDiv
                 ? tMap.get(pid)?.club

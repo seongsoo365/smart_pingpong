@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import { MATCH_SELECT } from '@/lib/supabase/selects'
 import { calculateStandings } from '@/lib/utils/standings'
 import { getPrelimSlotPlacements } from '@/lib/utils/bracket'
+import { formatTeamLevelSum } from '@/lib/utils/team'
 import { cn } from '@/lib/utils'
 import type { Group, Match, MatchSet, Player, Standing, Team, TournamentPhase } from '@/lib/types'
 
@@ -57,7 +58,12 @@ export default function DivisionRealtimeContent({
   )
 
   const pMap = new Map(participants.map(p => [p.id, p]))
-  const getName = (pid?: string) => pid ? (pMap.get(pid) as Player | Team | undefined)?.name : undefined
+  const getName = (pid?: string) => {
+    if (!pid) return undefined
+    const p = pMap.get(pid) as Player | Team | undefined
+    if (!p) return undefined
+    return isIndividual ? p.name : `${p.name} ${formatTeamLevelSum((p as Team).members)}`
+  }
   const getClub = (pid?: string) => pid ? (pMap.get(pid) as Player | Team | undefined)?.club : undefined
 
   useEffect(() => {
