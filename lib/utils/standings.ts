@@ -30,7 +30,8 @@ export function getTieGroups(standings: StandingRow[]): number[][] {
 export function calculateStandings(
   matches: Match[],
   participantIds: string[],
-  rankingMethod: RankingMethod = 'wins_first'
+  rankingMethod: RankingMethod = 'wins_first',
+  isTeam = false
 ): StandingRow[] {
   const stats: Record<string, {
     participant_id: string
@@ -51,15 +52,20 @@ export function calculateStandings(
     const { participant1_id: p1, participant2_id: p2, score1, score2, winner_id } = match
     if (!p1 || !p2) continue
 
+    // 단체전 + 세트득실 우선: 개인경기별 실제 세트 점수 합산 (게임 승수 대신)
+    const useGameSets = isTeam && rankingMethod === 'setdiff_first'
+    const s1 = useGameSets ? (match.sets ?? []).reduce((sum, s) => sum + s.score1, 0) : score1
+    const s2 = useGameSets ? (match.sets ?? []).reduce((sum, s) => sum + s.score2, 0) : score2
+
     if (stats[p1]) {
-      stats[p1].sets_won += score1
-      stats[p1].sets_lost += score2
+      stats[p1].sets_won += s1
+      stats[p1].sets_lost += s2
       if (winner_id === p1) stats[p1].wins++
       else stats[p1].losses++
     }
     if (stats[p2]) {
-      stats[p2].sets_won += score2
-      stats[p2].sets_lost += score1
+      stats[p2].sets_won += s2
+      stats[p2].sets_lost += s1
       if (winner_id === p2) stats[p2].wins++
       else stats[p2].losses++
     }

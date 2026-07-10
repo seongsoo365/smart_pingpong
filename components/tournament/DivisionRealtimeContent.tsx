@@ -242,7 +242,7 @@ export default function DivisionRealtimeContent({
                 .sort((a, b) => a.ranking - b.ranking)
                 .map(s => ({ ...s, name: getName(s.participant_id) ?? '?', club: getClub(s.participant_id) }))
             } else {
-              rows = calculateStandings(groupMatches, ids, prelim?.ranking_method ?? 'wins_first').map(s => ({
+              rows = calculateStandings(groupMatches, ids, prelim?.ranking_method ?? 'wins_first', !isIndividual).map(s => ({
                 ...s,
                 name: getName(s.participant_id) ?? '?',
                 club: getClub(s.participant_id),

@@ -145,6 +145,18 @@ export default function ScoresPage() {
 
     const allMatches = m ?? []
 
+    // match_sets를 먼저 로드해 matches에 부착: 단체전 세트득실 계산(calculateStandings)에 필요
+    const setsMap: Record<string, MatchSet[]> = {}
+    if (allMatches.length > 0) {
+      const { data: ms } = await supabase
+        .from('match_sets').select('*').in('match_id', allMatches.map(x => x.id)).order('set_number')
+      for (const s of ms ?? []) {
+        if (!setsMap[s.match_id]) setsMap[s.match_id] = []
+        setsMap[s.match_id].push(s)
+      }
+      for (const match of allMatches) match.sets = setsMap[match.id] ?? []
+    }
+
     // standings를 먼저 로드: singleSlotMatches 가드 및 확정 순위 표시에 활용
     const groupIds = (g ?? []).map(grp => grp.id)
     let loadedConfirmedIds = new Set<string>()
@@ -240,17 +252,7 @@ export default function ScoresPage() {
 
     setGroups(g ?? [])
     setMatches(allMatches)
-
-    if (allMatches.length > 0) {
-      const { data: ms } = await supabase
-        .from('match_sets').select('*').in('match_id', allMatches.map(x => x.id)).order('set_number')
-      const setsMap: Record<string, MatchSet[]> = {}
-      for (const s of ms ?? []) {
-        if (!setsMap[s.match_id]) setsMap[s.match_id] = []
-        setsMap[s.match_id].push(s)
-      }
-      setMatchSetsMap(setsMap)
-    }
+    setMatchSetsMap(setsMap)
   }
 
   useEffect(() => { if (selectedDivId && divisions.length > 0) loadData(selectedDivId) }, [selectedDivId, divisions])
@@ -269,7 +271,7 @@ export default function ScoresPage() {
           ...gMatches.map(m => m.participant1_id),
           ...gMatches.map(m => m.participant2_id),
         ].filter(Boolean))] as string[]
-        const standings = calculateStandings(gMatches, ids, prelimPhase.ranking_method ?? 'wins_first')
+        const standings = calculateStandings(gMatches, ids, prelimPhase.ranking_method ?? 'wins_first', isTeamDiv)
         if (getTieGroups(standings).length > 0 && !confirmedGroupIdsRef.current.has(group.id)) {
           next[group.id] = prev[group.id] ?? standings.map(s => s.participant_id)
         }
@@ -423,7 +425,7 @@ export default function ScoresPage() {
     }
 
     if (phase?.phase_type === 'preliminary' && match.group_id) {
-      await checkPrelimAdvancement(match.group_id, phase, winner_id, finalScore1, finalScore2)
+      await checkPrelimAdvancement(match.group_id, phase, winner_id, finalScore1, finalScore2, sets)
     }
 
     await loadData(selectedDivId)
@@ -431,11 +433,12 @@ export default function ScoresPage() {
 
   async function checkPrelimAdvancement(
     groupId: string, phase: TournamentPhase,
-    winnerId: string | undefined, s1: number, s2: number
+    winnerId: string | undefined, s1: number, s2: number,
+    editedSets: { score1: number; score2: number }[]
   ) {
     const groupMatches = matches.filter(m => m.group_id === groupId)
     const updatedMatches = groupMatches.map(m => m.id === editing
-      ? { ...m, score1: s1, score2: s2, status: 'completed' as const, winner_id: winnerId ?? undefined }
+      ? { ...m, score1: s1, score2: s2, status: 'completed' as const, winner_id: winnerId ?? undefined, sets: editedSets as MatchSet[] }
       : m)
     if (!updatedMatches.every(m => m.status === 'completed')) return
 
@@ -444,7 +447,7 @@ export default function ScoresPage() {
       ...updatedMatches.map(m => m.participant2_id),
     ].filter(Boolean))] as string[]
 
-    const standings = calculateStandings(updatedMatches, participantIds, phase.ranking_method ?? 'wins_first')
+    const standings = calculateStandings(updatedMatches, participantIds, phase.ranking_method ?? 'wins_first', isTeamDiv)
     const advanceCount = phase.advancement_count ?? 2
     if (hasTieAtBoundary(standings, advanceCount)) return
 
@@ -510,7 +513,7 @@ export default function ScoresPage() {
       ...groupMatches.map(m => m.participant2_id),
     ].filter(Boolean))] as string[]
 
-    const rawStandings = calculateStandings(groupMatches, participantIds, phase.ranking_method ?? 'wins_first')
+    const rawStandings = calculateStandings(groupMatches, participantIds, phase.ranking_method ?? 'wins_first', isTeamDiv)
     const statsMap = new Map(rawStandings.map(s => [s.participant_id, s]))
 
     // orderedIds가 사용자가 조정한 순서 — ranking은 반드시 이 순서 기준으로 저장
@@ -548,7 +551,7 @@ export default function ScoresPage() {
         ...groupMatches.map(m => m.participant1_id),
         ...groupMatches.map(m => m.participant2_id),
       ].filter(Boolean))] as string[]
-      return calculateStandings(groupMatches, ids, prelimPhase?.ranking_method ?? 'wins_first').map(s => s.participant_id)
+      return calculateStandings(groupMatches, ids, prelimPhase?.ranking_method ?? 'wins_first', isTeamDiv).map(s => s.participant_id)
     })()
 
     const newSet = new Set(confirmedGroupIds)
@@ -566,7 +569,7 @@ export default function ScoresPage() {
       if (toIdx < 0 || toIdx >= arr.length) return prev
       const gMatches = matches.filter(m => m.group_id === groupId)
       const ids = [...new Set([...gMatches.map(m => m.participant1_id), ...gMatches.map(m => m.participant2_id)].filter(Boolean))] as string[]
-      const standings = calculateStandings(gMatches, ids, prelimPhase?.ranking_method ?? 'wins_first')
+      const standings = calculateStandings(gMatches, ids, prelimPhase?.ranking_method ?? 'wins_first', isTeamDiv)
       const tiedGroups = getTieGroups(standings)
       const fromOriginalIdx = standings.findIndex(s => s.participant_id === arr[fromIdx])
       const toOriginalIdx = standings.findIndex(s => s.participant_id === arr[toIdx])
@@ -718,6 +721,7 @@ export default function ScoresPage() {
     const needed = Math.ceil(totalGames / 2)
     const isEditing = editing === m.id
     const mSets = matchSetsMap[m.id] ?? []
+    const setDiffFirst = phase?.ranking_method === 'setdiff_first'
 
     if (m.status === 'completed' && !isEditing) {
       return (
@@ -748,6 +752,7 @@ export default function ScoresPage() {
                     t1Won ? 'text-primary' : 'text-accent'
                   )}>
                     {game.label}: {t1Won ? (t1?.name ?? '팀1') : (t2?.name ?? '팀2')}
+                    {setDiffFirst && ` (${s.score1}-${s.score2})`}
                   </span>
                 )
               })}
@@ -813,32 +818,52 @@ export default function ScoresPage() {
                       </span>
                       <span className="text-xs text-muted-foreground">{game.label}</span>
                     </div>
-                    <div className="flex-1 flex gap-2">
-                      <button
-                        disabled={alreadyDecided}
-                        onClick={() => toggleGameResult(idx, 1)}
-                        className={cn(
-                          'flex-1 py-1.5 text-xs font-semibold rounded-lg border transition-colors',
-                          t1Won
-                            ? 'bg-primary text-primary-foreground border-primary'
-                            : 'glass border-white/10 text-muted-foreground hover:bg-white/10 disabled:opacity-50'
-                        )}
-                      >
-                        {t1?.name ?? '팀1'}
-                      </button>
-                      <button
-                        disabled={alreadyDecided}
-                        onClick={() => toggleGameResult(idx, 2)}
-                        className={cn(
-                          'flex-1 py-1.5 text-xs font-semibold rounded-lg border transition-colors',
-                          t2Won
-                            ? 'bg-accent text-white border-accent'
-                            : 'glass border-white/10 text-muted-foreground hover:bg-white/10 disabled:opacity-50'
-                        )}
-                      >
-                        {t2?.name ?? '팀2'}
-                      </button>
-                    </div>
+                    {setDiffFirst ? (
+                      <div className="flex-1 flex items-center justify-center gap-1.5 min-w-0">
+                        <span className="flex-1 text-xs text-muted-foreground text-right truncate">{t1?.name ?? '팀1'}</span>
+                        <input type="number" min={0} disabled={alreadyDecided} value={s.score1}
+                          onChange={e => updateSet(idx, 'score1', Number(e.target.value))}
+                          className={cn(
+                            'w-12 shrink-0 text-center glass border rounded-lg py-1 text-xs font-bold bg-transparent outline-none transition-colors disabled:opacity-50',
+                            t1Won ? 'border-primary text-primary' : 'border-white/10 focus:border-primary'
+                          )} />
+                        <span className="text-muted-foreground text-xs shrink-0">:</span>
+                        <input type="number" min={0} disabled={alreadyDecided} value={s.score2}
+                          onChange={e => updateSet(idx, 'score2', Number(e.target.value))}
+                          className={cn(
+                            'w-12 shrink-0 text-center glass border rounded-lg py-1 text-xs font-bold bg-transparent outline-none transition-colors disabled:opacity-50',
+                            t2Won ? 'border-accent text-accent' : 'border-white/10 focus:border-primary'
+                          )} />
+                        <span className="flex-1 text-xs text-muted-foreground truncate">{t2?.name ?? '팀2'}</span>
+                      </div>
+                    ) : (
+                      <div className="flex-1 flex gap-2">
+                        <button
+                          disabled={alreadyDecided}
+                          onClick={() => toggleGameResult(idx, 1)}
+                          className={cn(
+                            'flex-1 py-1.5 text-xs font-semibold rounded-lg border transition-colors',
+                            t1Won
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'glass border-white/10 text-muted-foreground hover:bg-white/10 disabled:opacity-50'
+                          )}
+                        >
+                          {t1?.name ?? '팀1'}
+                        </button>
+                        <button
+                          disabled={alreadyDecided}
+                          onClick={() => toggleGameResult(idx, 2)}
+                          className={cn(
+                            'flex-1 py-1.5 text-xs font-semibold rounded-lg border transition-colors',
+                            t2Won
+                              ? 'bg-accent text-white border-accent'
+                              : 'glass border-white/10 text-muted-foreground hover:bg-white/10 disabled:opacity-50'
+                          )}
+                        >
+                          {t2?.name ?? '팀2'}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -1045,7 +1070,7 @@ export default function ScoresPage() {
                 ...groupMatches.map(m => m.participant1_id),
                 ...groupMatches.map(m => m.participant2_id),
               ].filter(Boolean))] as string[]
-              const groupStandings = calculateStandings(groupMatches, groupIds, currentPhase.ranking_method ?? 'wins_first')
+              const groupStandings = calculateStandings(groupMatches, groupIds, currentPhase.ranking_method ?? 'wins_first', isTeamDiv)
               const setDiffFirst = currentPhase.ranking_method === 'setdiff_first'
               const tieGroups = getTieGroups(groupStandings)
               const tiedIndices = new Set(tieGroups.flat())
