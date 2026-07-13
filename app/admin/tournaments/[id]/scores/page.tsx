@@ -666,6 +666,7 @@ export default function ScoresPage() {
                   <div key={idx} className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground w-10 text-right shrink-0">{idx + 1}세트</span>
                     <input type="number" min={0} value={s.score1}
+                      onFocus={e => e.target.select()}
                       onChange={e => updateSet(idx, 'score1', Number(e.target.value))}
                       className={cn(
                         'w-14 text-center glass border rounded-lg py-1.5 text-sm font-bold bg-transparent outline-none transition-colors',
@@ -673,6 +674,7 @@ export default function ScoresPage() {
                       )} />
                     <span className="text-muted-foreground text-sm shrink-0">:</span>
                     <input type="number" min={0} value={s.score2}
+                      onFocus={e => e.target.select()}
                       onChange={e => updateSet(idx, 'score2', Number(e.target.value))}
                       className={cn(
                         'w-14 text-center glass border rounded-lg py-1.5 text-sm font-bold bg-transparent outline-none transition-colors',
@@ -802,10 +804,12 @@ export default function ScoresPage() {
                 const t1Won = s.score1 > s.score2
                 const t2Won = s.score2 > s.score1
                 // 이미 승패가 결정된 후 경기는 시각적으로 구분
+                // 단, 세트득실 우선(setDiffFirst)인 경우 모든 게임을 입력해야
+                // 총 세트 득실을 계산할 수 있으므로 승리 확정 후에도 잠그지 않음
                 const gamesDone = sets.slice(0, idx).filter(x => x.score1 > 0 || x.score2 > 0)
                 const s1so = gamesDone.filter(x => x.score1 > x.score2).length
                 const s2so = gamesDone.filter(x => x.score2 > x.score1).length
-                const alreadyDecided = s1so >= needed || s2so >= needed
+                const alreadyDecided = !setDiffFirst && (s1so >= needed || s2so >= needed)
 
                 return (
                   <div key={idx} className={cn(
@@ -822,6 +826,7 @@ export default function ScoresPage() {
                       <div className="flex-1 flex items-center justify-center gap-1.5 min-w-0">
                         <span className="flex-1 text-xs text-muted-foreground text-right truncate">{t1?.name ?? '팀1'}</span>
                         <input type="number" min={0} disabled={alreadyDecided} value={s.score1}
+                          onFocus={e => e.target.select()}
                           onChange={e => updateSet(idx, 'score1', Number(e.target.value))}
                           className={cn(
                             'w-12 shrink-0 text-center glass border rounded-lg py-1 text-xs font-bold bg-transparent outline-none transition-colors disabled:opacity-50',
@@ -829,6 +834,7 @@ export default function ScoresPage() {
                           )} />
                         <span className="text-muted-foreground text-xs shrink-0">:</span>
                         <input type="number" min={0} disabled={alreadyDecided} value={s.score2}
+                          onFocus={e => e.target.select()}
                           onChange={e => updateSet(idx, 'score2', Number(e.target.value))}
                           className={cn(
                             'w-12 shrink-0 text-center glass border rounded-lg py-1 text-xs font-bold bg-transparent outline-none transition-colors disabled:opacity-50',
@@ -869,7 +875,9 @@ export default function ScoresPage() {
               })}
             </div>
             <div className="text-center text-xs text-muted-foreground mb-3">
-              {needed}승 선취 시 팀 승리 ({totalGames}전 {needed}선승)
+              {setDiffFirst
+                ? `모든 게임 입력 (${totalGames}전 전 게임 · 세트 득실로 순위 결정)`
+                : `${needed}승 선취 시 팀 승리 (${totalGames}전 ${needed}선승)`}
             </div>
             <div className="flex justify-end gap-2">
               <button onClick={() => setEditing(null)}
