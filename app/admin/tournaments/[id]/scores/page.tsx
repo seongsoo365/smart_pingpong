@@ -410,7 +410,7 @@ export default function ScoresPage() {
     const phase = phases.find(p => p.id === match.phase_id)
     if (winner_id && phase?.phase_type === 'main') {
       const nextRoundMatches = matches
-        .filter(m => m.phase_id === match.phase_id && m.round === match.round + 1)
+        .filter(m => m.phase_id === match.phase_id && m.round === match.round + 1 && m.status !== 'bye')
         .sort((a, b) => a.match_number - b.match_number)
       if (nextRoundMatches.length > 0) {
         const slot = Math.floor((match.match_number - 1) / 2)
@@ -475,7 +475,7 @@ export default function ScoresPage() {
     if (!mainPhase || advancers.length === 0) return
 
     const mainMatches = matches
-      .filter(m => m.phase_id === mainPhase.id && m.round === 1)
+      .filter(m => m.phase_id === mainPhase.id && m.round === 1 && m.status !== 'bye')
       .sort((a, b) => a.match_number - b.match_number)
 
     const prelimGroups = groups
