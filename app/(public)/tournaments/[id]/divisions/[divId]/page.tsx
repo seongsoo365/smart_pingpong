@@ -36,8 +36,8 @@ export default async function DivisionDetailPage({
     supabase.from('divisions').select('id, name, gender, match_type, team_match_format').eq('id', divId).single(),
     supabase.from('tournaments').select('name, status').eq('id', tournamentId).single(),
     supabase.from('tournament_phases').select('*').eq('division_id', divId).order('phase_order'),
-    supabase.from('players').select('id, name, club').eq('division_id', divId).order('seed', { nullsFirst: false }),
-    supabase.from('teams').select('id, name, club, members:team_members(id, player_name, player_order, player_level)').eq('division_id', divId),
+    supabase.from('players').select('id, name, club').eq('division_id', divId).eq('confirmed', true).order('seed', { nullsFirst: false }),
+    supabase.from('teams').select('id, name, club, members:team_members(id, player_name, player_order, player_level)').eq('division_id', divId).eq('confirmed', true),
   ])
   if (!division || !tournament) notFound()
 

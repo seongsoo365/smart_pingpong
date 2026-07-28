@@ -2,7 +2,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft, Save, Loader2, CheckCircle2 } from 'lucide-react'
+import { ChevronLeft, Save, Loader2, CheckCircle2, Clock } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { getMyRegistrationsByTournament } from '@/lib/utils/myRegistrations'
@@ -46,7 +46,7 @@ function EditContent() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [notFound, setNotFound] = useState(false)
-  const [alreadyApproved, setAlreadyApproved] = useState(false)
+  const [registrationStatus, setRegistrationStatus] = useState<'pending' | 'approved' | null>(null)
 
   // Individual fields
   const [name, setName] = useState('')
@@ -92,7 +92,8 @@ function EditContent() {
         .single()
       if (!p) { setNotFound(true); setLoading(false); return }
       const player = p as Player
-      if (player.confirmed) { setAlreadyApproved(true); setLoading(false); return }
+      if (player.confirmed) { setRegistrationStatus('approved'); setLoading(false); return }
+      setRegistrationStatus('pending')
       setName(player.name)
       setClub(player.club ?? '')
       setPhone(player.phone ?? '')
@@ -107,7 +108,8 @@ function EditContent() {
         .single()
       if (!t) { setNotFound(true); setLoading(false); return }
       const team = t as Team & { members: TeamMember[]; division: { team_match_format: TeamMatchFormat | null } }
-      if (team.confirmed) { setAlreadyApproved(true); setLoading(false); return }
+      if (team.confirmed) { setRegistrationStatus('approved'); setLoading(false); return }
+      setRegistrationStatus('pending')
       setTeamName(team.name)
       setTeamClub(team.club ?? '')
       setTeamEmail(team.email ?? '')
@@ -230,11 +232,11 @@ function EditContent() {
     )
   }
 
-  if (alreadyApproved) {
+  if (registrationStatus === 'approved') {
     return (
       <div className="max-w-lg mx-auto px-4 py-16 text-center space-y-4">
         <CheckCircle2 className="w-12 h-12 text-primary mx-auto" />
-        <h2 className="text-lg font-bold">이미 승인된 신청입니다</h2>
+        <h2 className="text-lg font-bold">신청이 승인되었습니다</h2>
         <p className="text-sm text-muted-foreground leading-relaxed">
           승인 완료 후에는 수정이 불가합니다.<br />
           변경이 필요한 경우 대회 운영진에게 문의하세요.
@@ -256,7 +258,15 @@ function EditContent() {
         <Link href={`/tournaments/${id}`} className="p-2 glass rounded-lg hover:bg-white/10 transition-colors">
           <ChevronLeft className="w-4 h-4" />
         </Link>
-        <h1 className="text-xl font-bold">신청 정보 수정</h1>
+        <div className="flex-1">
+          <h1 className="text-xl font-bold">신청 정보 수정</h1>
+          {registrationStatus === 'pending' && (
+            <div className="flex items-center gap-2 mt-1">
+              <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
+              <span className="text-xs text-yellow-600 dark:text-yellow-400">승인 대기 중</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {type === 'player' ? (
