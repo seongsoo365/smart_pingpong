@@ -112,25 +112,6 @@ function BracketMatchCard({ match, isTeam }: { match: BracketMatch; isTeam: bool
         isEmpty={!p2Name && !isBye}
         isTeam={isTeam}
       />
-      {/* 단체전 개인경기 결과 요약 */}
-      {isTeam && isDone && sets.length > 0 && (
-        <div className="flex items-center justify-center gap-1 px-3 py-1.5 border-t border-border">
-          {sets.map((s, i) => {
-            const p1Won = s.score1 > s.score2
-            const p2Won = s.score2 > s.score1
-            return (
-              <span
-                key={i}
-                title={p1Won ? (p1Name ?? '팀1') : p2Won ? (p2Name ?? '팀2') : '-'}
-                className={cn(
-                  'w-3 h-3 rounded-full shrink-0',
-                  p1Won ? 'bg-primary' : p2Won ? 'bg-accent' : 'bg-muted-foreground/40'
-                )}
-              />
-            )
-          })}
-        </div>
-      )}
     </div>
   )
 }
