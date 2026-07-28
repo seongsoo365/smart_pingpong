@@ -220,26 +220,47 @@ export default async function TournamentDetailPage({
         const bracketSection = (
           <details key="bracket" open={showBracket} className="glass rounded-2xl border border-white/10 group">
             <summary className="flex items-center justify-between px-6 py-4 cursor-pointer list-none select-none hover:bg-white/[0.03] transition-colors rounded-2xl">
-              <h2 className="text-lg font-bold">부수별 대진</h2>
+              <h2 className="text-lg font-bold">대진현황 / 결과</h2>
               <ChevronDown className="w-5 h-5 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
             </summary>
             <div className="px-4 pb-4 space-y-3">
               {(divisions?.length ?? 0) > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {divisions?.map((div) => (
-                    <Link key={div.id} href={`/tournaments/${id}/divisions/${div.id}`}
-                      className="glass rounded-xl p-4 border border-white/10 hover:bg-white/10 hover:border-primary/30 transition-all group/div">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-bold text-base group-hover/div:text-primary transition-colors">
-                            {genderLabel[div.gender]} {div.name}
+                  {divisions?.map((div) => {
+                    const divTeams = teamDivisionsWithTeams.find(d => d.id === div.id)
+                    const approvedCount = divTeams?.approvedTeams.length ?? 0
+                    const pendingCount = divTeams?.pendingTeams.length ?? 0
+                    return (
+                      <Link key={div.id} href={`/tournaments/${id}/divisions/${div.id}`}
+                        className="glass rounded-xl p-4 border border-white/10 hover:bg-white/10 hover:border-primary/30 transition-all group/div">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="font-bold text-base group-hover/div:text-primary transition-colors">
+                              {genderLabel[div.gender]} {div.name}
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-0.5">{matchTypeLabel[div.match_type]}</div>
+                            {div.match_type === 'team' && (approvedCount > 0 || pendingCount > 0) && (
+                              <div className="flex items-center gap-2 mt-2 text-xs">
+                                {approvedCount > 0 && (
+                                  <span className="flex items-center gap-1">
+                                    <ShieldCheck className="w-3 h-3 text-primary" />
+                                    <span className="text-foreground">{approvedCount}팀</span>
+                                  </span>
+                                )}
+                                {pendingCount > 0 && (
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="w-3 h-3 text-accent" />
+                                    <span className="text-muted-foreground">{pendingCount}팀</span>
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
-                          <div className="text-xs text-muted-foreground mt-0.5">{matchTypeLabel[div.match_type]}</div>
+                          <ChevronRight className="w-4 h-4 text-muted-foreground group-hover/div:text-primary transition-colors shrink-0 ml-2" />
                         </div>
-                        <ChevronRight className="w-4 h-4 text-muted-foreground group-hover/div:text-primary transition-colors" />
-                      </div>
-                    </Link>
-                  ))}
+                      </Link>
+                    )
+                  })}
                 </div>
               ) : (
                 <p className="text-muted-foreground text-sm px-2">아직 부수가 등록되지 않았습니다.</p>
