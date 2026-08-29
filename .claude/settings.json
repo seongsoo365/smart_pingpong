@@ -1,0 +1,3 @@
+{
+  "init_prompt": "📌 smart_pingpong 프로젝트 작업 시작\n\n⭐ 중요: 이 프로젝트를 분석하기 전에 반드시 CLAUDE.md를 먼저 읽으세요!\n\n📚 CLAUDE.md에서 확인할 내용:\n1. 문서 맵 (작업 종류별 참고할 문서)\n2. 기술 스택 (Next.js 16, React 19, Tailwind CSS 등)\n3. 핵심 불변 규칙 (타입, 스타일, 언어 등)\n4. Next.js 16 필수 주의사항\n\n🎯 작업 시작 전 체크리스트:\n- [ ] CLAUDE.md 읽기\n- [ ] 작업 종류에 맞는 문서 확인 (문서 맵 참고)\n  • UI·페이지 → docs/screens/README.md\n  • API·백엔드 → docs/features/README.md\n  • DB → docs/data-model.md\n  • 대진표/점수 → docs/features/draw-scores.md\n  • 인증·권한 → docs/features/auth-authz.md\n- [ ] 관련 문서 읽기\n- [ ] 실제 코드 분석\n\n⚡ 팁: 작업 진행 중 특정 문서가 필요하면 '@문서경로' 형식으로 명시하면 해당 문서를 먼저 읽고 진행합니다.\n예: '@CLAUDE.md를 읽고 대진표 로직을 분석해줘'"
+}

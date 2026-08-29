@@ -97,6 +97,8 @@ export default function ScoresPage() {
   const [showMatrix, setShowMatrix] = useState<Record<string, boolean>>({})
   const [confirmedGroupIds, setConfirmedGroupIds] = useState<Set<string>>(new Set())
   const confirmedGroupIdsRef = useRef<Set<string>>(new Set())
+  // 수동으로 "순위 재조정"을 연 조 — 동률 자동 재계산 useEffect가 이 조의 tieBreaks를 덮어쓰지 않도록 보호
+  const manuallyReopenedRef = useRef<Set<string>>(new Set())
   // DB에 저장된 확정 순위 (group_id → participant_id 배열, ranking 오름차순)
   const [confirmedRankings, setConfirmedRankings] = useState<Record<string, string[]>>({})
   const supabase = createClient()
@@ -272,7 +274,10 @@ export default function ScoresPage() {
           ...gMatches.map(m => m.participant2_id),
         ].filter(Boolean))] as string[]
         const standings = calculateStandings(gMatches, ids, prelimPhase.ranking_method ?? 'wins_first', isTeamDiv)
-        if (getTieGroups(standings).length > 0 && !confirmedGroupIdsRef.current.has(group.id)) {
+        // 수동으로 재조정을 연 조는 동률 여부와 무관하게 유지(reopenTieBreak에서 이미 확정된 순서를 세팅함)
+        if (manuallyReopenedRef.current.has(group.id) && prev[group.id]) {
+          next[group.id] = prev[group.id]
+        } else if (getTieGroups(standings).length > 0 && !confirmedGroupIdsRef.current.has(group.id)) {
           next[group.id] = prev[group.id] ?? standings.map(s => s.participant_id)
         }
       }
@@ -535,6 +540,7 @@ export default function ScoresPage() {
     if (error) { toast.error('순위 저장 실패: ' + error.message); return }
 
     await advanceGroup(groupId, phase, orderedIds)
+    manuallyReopenedRef.current.delete(groupId)
     setTieBreaks(prev => { const n = { ...prev }; delete n[groupId]; return n })
     toast.success('순위가 확정되었습니다')
     await loadData(selectedDivId)
@@ -544,16 +550,23 @@ export default function ScoresPage() {
     // DB에 저장된 순위가 있으면 그것을 초기값으로 사용 (이전 조정 반영)
     // 없으면 경기 결과로 재계산
     const prelimPhase = phases.find(p => p.phase_type === 'preliminary')
-    const savedOrder = confirmedRankings[groupId]
-    const currentOrder = savedOrder ?? (() => {
-      const groupMatches = matches.filter(m => m.group_id === groupId)
-      const ids = [...new Set([
-        ...groupMatches.map(m => m.participant1_id),
-        ...groupMatches.map(m => m.participant2_id),
-      ].filter(Boolean))] as string[]
-      return calculateStandings(groupMatches, ids, prelimPhase?.ranking_method ?? 'wins_first', isTeamDiv).map(s => s.participant_id)
-    })()
+    const groupMatches = matches.filter(m => m.group_id === groupId)
+    const ids = [...new Set([
+      ...groupMatches.map(m => m.participant1_id),
+      ...groupMatches.map(m => m.participant2_id),
+    ].filter(Boolean))] as string[]
+    const standings = calculateStandings(groupMatches, ids, prelimPhase?.ranking_method ?? 'wins_first', isTeamDiv)
 
+    // 동률이 이미 해소된 조는 조정할 대상이 없음 — 화살표 UI가 뜨지 않아 "작동 안 함"처럼 보이므로 사전에 안내
+    if (getTieGroups(standings).length === 0) {
+      toast.error('현재 동률인 참가자가 없어 순위를 재조정할 수 없습니다')
+      return
+    }
+
+    const savedOrder = confirmedRankings[groupId]
+    const currentOrder = savedOrder ?? standings.map(s => s.participant_id)
+
+    manuallyReopenedRef.current.add(groupId)
     const newSet = new Set(confirmedGroupIds)
     newSet.delete(groupId)
     confirmedGroupIdsRef.current = newSet
