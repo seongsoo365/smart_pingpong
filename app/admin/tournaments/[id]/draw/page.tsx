@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { ChevronLeft, Shuffle, CheckCircle, AlertCircle, Info } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { generateRoundRobin, distributeIntoGroups } from '@/lib/utils/roundrobin'
+import { generateRoundRobin, distributeIntoGroups, sortWithRandomForUnseeded } from '@/lib/utils/roundrobin'
 import { generateSeededBracket, getBracketRounds, nextPowerOfTwo } from '@/lib/utils/bracket'
 import { cn } from '@/lib/utils'
 import type { Division, Player, Team, TournamentPhase } from '@/lib/types'
@@ -97,6 +97,9 @@ export default function DrawPage() {
 
     setLoading(true)
 
+    // seed 있는 참가자는 seed 순서 유지, seed 없는 참가자는 매 생성 시마다 무작위 순서로 배정
+    const ordered = sortWithRandomForUnseeded(participants as (Player | Team)[])
+
     const participantTable = isTeam ? 'teams' : 'players'
 
     // Reset group_id on participants FIRST — FK on teams/players.group_id → groups(id)
@@ -115,7 +118,7 @@ export default function DrawPage() {
     await supabase.from('matches').delete().eq('phase_id', main.id)
 
     if (prelim) {
-      const distributed = distributeIntoGroups(participants as (Player | Team)[], groupCount)
+      const distributed = distributeIntoGroups(ordered, groupCount)
         .map((groupParticipants, gi) => ({ groupParticipants, gi }))
         .filter(({ groupParticipants }) => groupParticipants.length > 0)
 
@@ -184,9 +187,7 @@ export default function DrawPage() {
       }
     } else {
       // Direct bracket (no preliminary)
-      const seeded = [...participants]
-        .sort((a, b) => ((a as Player | Team).seed ?? 9999) - ((b as Player | Team).seed ?? 9999))
-        .map(p => p.id)
+      const seeded = ordered.map(p => p.id)
       const bracket = generateSeededBracket(seeded)
       const totalRounds = getBracketRounds(participants.length)
       const slots = nextPowerOfTwo(participants.length)

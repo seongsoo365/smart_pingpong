@@ -27,6 +27,19 @@ export function generateRoundRobin(participantIds: string[]): Array<[string, str
   return rounds
 }
 
+// seed가 있는 참가자는 seed 오름차순을 유지하고, seed가 없는 참가자끼리만
+// Fisher-Yates로 무작위 순서를 부여한다 (매 호출마다 새로운 결과).
+// 기존 `order('seed', { nullsFirst: false })`와 동일하게 seed 없는 참가자는 뒤쪽에 배치.
+export function sortWithRandomForUnseeded<T extends { seed?: number | null }>(participants: T[]): T[] {
+  const seeded = participants.filter(p => p.seed != null).sort((a, b) => (a.seed as number) - (b.seed as number))
+  const unseeded = participants.filter(p => p.seed == null)
+  for (let i = unseeded.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[unseeded[i], unseeded[j]] = [unseeded[j], unseeded[i]]
+  }
+  return [...seeded, ...unseeded]
+}
+
 export function distributeIntoGroups<T>(participants: T[], groupCount: number): T[][] {
   const groups: T[][] = Array.from({ length: groupCount }, () => [])
   // Snake seeding: 1→A, 2→B, 3→C, 4→C, 5→B, 6→A ...
