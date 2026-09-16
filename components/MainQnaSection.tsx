@@ -4,6 +4,12 @@ import { MessageCircle, ChevronDown, ChevronUp, Send, Clock } from 'lucide-react
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { MainQuestion } from '@/lib/types'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 interface Props {
   initialQuestions: MainQuestion[]
@@ -15,7 +21,7 @@ export default function MainQnaSection({ initialQuestions }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [form, setForm] = useState({ name: '', question: '' })
   const [submitting, setSubmitting] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -28,8 +34,10 @@ export default function MainQnaSection({ initialQuestions }: Props) {
     setSubmitting(false)
     if (error) { toast.error('질문 등록 실패: ' + error.message); return }
     if (data) setQuestions(prev => [...prev, data])
+    const submittedName = form.name.trim()
+    const submittedQuestion = form.question.trim()
     setForm({ name: '', question: '' })
-    setSubmitted(true)
+    setDialogOpen(false)
     toast.success('질문이 등록되었습니다. 관리자 답변 후 답변이 표시됩니다.')
 
     fetch('/api/notify/discord', {
@@ -37,8 +45,8 @@ export default function MainQnaSection({ initialQuestions }: Props) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         source: 'main',
-        authorName: form.name.trim(),
-        question: form.question.trim(),
+        authorName: submittedName,
+        question: submittedQuestion,
         pageUrl: window.location.href,
       }),
     }).catch(() => {})
@@ -90,21 +98,19 @@ export default function MainQnaSection({ initialQuestions }: Props) {
         <p className="text-sm text-muted-foreground">아직 등록된 질문이 없습니다.</p>
       )}
 
-      {/* 질문 등록 폼 */}
-      <div className="glass rounded-xl border border-white/10 p-5">
-        <p className="text-sm font-medium mb-4">질문하기</p>
-        {submitted ? (
-          <div className="text-center py-4 space-y-2">
-            <p className="text-sm text-muted-foreground">질문이 등록되었습니다.</p>
-            <p className="text-sm text-muted-foreground">관리자 검토 후 답변이 공개됩니다.</p>
-            <button
-              onClick={() => setSubmitted(false)}
-              className="text-sm text-primary hover:underline mt-1"
-            >
-              추가 질문하기
-            </button>
-          </div>
-        ) : (
+      {/* 질문 등록 트리거 */}
+      <button
+        onClick={() => setDialogOpen(true)}
+        className="text-sm font-medium text-primary hover:underline"
+      >
+        질문하기
+      </button>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>질문하기</DialogTitle>
+          </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-3">
             <input
               className="glass border border-white/10 rounded-xl px-4 py-2.5 text-sm bg-transparent outline-none focus:border-primary transition-colors w-full"
@@ -132,8 +138,8 @@ export default function MainQnaSection({ initialQuestions }: Props) {
               </button>
             </div>
           </form>
-        )}
-      </div>
+        </DialogContent>
+      </Dialog>
     </section>
   )
 }
