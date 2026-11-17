@@ -37,22 +37,26 @@
 | 관련 함수 | `getMatchRatingPoints()` (`lib/utils/rating.ts`) |
 | 권한 | 공개(비인증). `createClientSafe()` — 미설정 시 503 |
 
-- **역할**: 한 선수의 전체 경기 이력(대회 + 일회성), 승패 합계, 레이팅 포인트, 상대전적(h2h)을 반환.
+- **역할**: 한 선수의 전체 경기 이력(대회 개인전 + 단체전 + 일회성), 승패 합계, 레이팅 포인트, 상대전적(h2h)을 반환.
 - **입력** (쿼리):
-  - `ids` — 콤마 구분 `players.id`(UUID 형식 검증). 대회 전적 조회용.
-  - `name`, `club` — 일회성 게임 매칭용(이름/클럽).
+  - `ids` — 콤마 구분 `players.id`(UUID 형식 검증). 개인전 대회 전적 조회용.
+  - `team_ids` — 콤마 구분 `teams.id`(UUID 형식 검증). 단체전 대회 전적 조회용.
+  - `name`, `club` — 일회성 게임 매칭용(이름/클럽). 단체전 "내 팀" 판별 폴백에도 사용.
   - `include_tournament`(기본 true), `include_casual`(기본 true) — `'false'`로 각 소스 제외.
   - `casual_game_ids` — 있으면 "내가 등록한 게임만" 필터(UUID 검증). 값이 있는데 빈 배열이면 일회성 전적 skip.
-  - `ids`와 `name` 둘 다 없으면 400.
-- **출력**: `{ player: {name, club?}, total_wins, total_losses, rating_points, rating_breakdown: {casual, preliminary, main}, h2h[], matches[] }`. 없으면 404(선수 못 찾음).
+  - `ids`, `team_ids`, `name` 셋 중 모두 없으면 400.
+- **출력**: `{ player: {name, club?}, total_wins, total_losses, rating_points, rating_breakdown: {casual, preliminary, main}, h2h[], matches[] }`. `matches[]`/`h2h[]` 항목에 `opponent_members?: string[]`(단체전 상대 팀 구성원 이름 목록) 포함. 없으면 404(선수 못 찾음).
 - **비즈니스 규칙**:
-  - **대회 전적**(`ids` && include_tournament): `matches`에서 `participant1_id.in(ids) OR participant2_id.in(ids)`, `status='completed'`, `participant1_type='player'`. 각 경기에서 "내 관점"으로 점수/세트 재배열(`isP1` 여부), `won = winner_id ∈ ids`. `points_earned = getMatchRatingPoints(...)`, `total_rounds`는 phase별 `max(round)`. 조인으로 `tournaments(name, start_date)`, `divisions(name)` 라벨 확보.
+  - **대회 전적**(`ids` 또는 `team_ids` && include_tournament): `matches`에서 `(participant1_id/2_id ∈ ids) OR (participant1_id/2_id ∈ team_ids)`, `status='completed'`. `participant1_type` 필터 없이 **개인전·단체전 통합 조회**.
+    - **개인전 매치**(`type='player'`): "나" = `myPlayerIdSet.has(participant_id)`. 상대 = `players`(name, club).
+    - **단체전 매치**(`type='team'`): "나" = 해당 팀이 `myTeamIdSet`(team_ids 중 teamMap에 존재)에 속하거나 `team_members.player_name`에 `myName`(playerInfo.name 또는 name 파라미터)이 포함된 팀. 상대 = `teams`(name=팀명, club, members=team_members.player_name 정렬).
+    - 각 경기 "내 관점"으로 점수/세트 재배열, `won` 판정 후 `points_earned = getMatchRatingPoints(...)` — rankings(FEAT-RNK-01)와 동일 규칙. `total_rounds`는 phase별 `max(round)`. 조인으로 `tournaments(name, start_date)`, `divisions(name)` 라벨 확보.
   - **일회성 전적**(`name` && include_casual): `casual_game_ids`가 있으면 `id.in(...)`, 없으면 `player1_name.eq OR player2_name.eq`. 이름(+선택적 클럽) 일치하는 쪽을 "나"로 매핑. `points_earned = won ? 10 : 0`, `phase_type='casual'`, `tournament_name='숏게임'`.
   - **정렬**: `tournament_start`(일회성은 `played_at`) 내림차순, null은 뒤로.
-  - **상대전적(h2h)**: 키 `` `${opponent_name}|${opponent_club ?? ''}` ``로 그룹핑, `wins`/`losses`/`matches` 누적. 총 대전 수(`wins+losses`) 내림차순 정렬.
+  - **상대전적(h2h)**: 키 `` `${opponent_name}|${opponent_club ?? ''}` ``로 그룹핑(개인 상대는 선수명, 단체 상대는 팀명), `wins`/`losses`/`matches` 누적. 단체전 상대는 `opponent_members`(팀 구성원 이름 배열)를 함께 노출. 총 대전 수(`wins+losses`) 내림차순 정렬.
   - **집계**: `rating_points` = 전 경기 `points_earned` 합, `rating_breakdown`은 phase_type별 합.
-- **관련 테이블**: 읽기 `players`(본인·상대), `matches`(+ `match_sets`, 조인 `tournament_phases → divisions → tournaments`), `casual_games`. 쓰기 없음.
-- **주의사항**: 동명이인은 `ids`(대회) 또는 `name+club`(일회성)으로 구분. `playerInfo`는 대회 조회 실패 시 `name/club` 파라미터로 폴백.
+- **관련 테이블**: 읽기 `players`(본인·상대), `teams` + `team_members`(본인 소속·상대 팀), `matches`(+ `match_sets`, 조인 `tournament_phases → divisions → tournaments`), `casual_games`. 쓰기 없음.
+- **주의사항**: 동명이인은 `ids`(개인전) 또는 `name+club`(일회성)으로 구분. 단체전은 `team_ids`(주) + `name`(members 포함 판별 폴백)으로 "내 팀"을 판정. `playerInfo`는 개인전 `players` 조회 → 없으면 `name/club` 파라미터로 폴백. 단체전 상대 표시는 `opponent_name=팀명`, `opponent_members=구성원 목록`으로 UI에서 함께 렌더.
 
 ---
 
@@ -64,14 +68,16 @@
 | 관련 함수 | — |
 | 권한 | 공개(비인증). `createClientSafe()` — 미설정 시 503 |
 
-- **역할**: 이름으로 선수 후보를 검색. 대회 등록 선수(`players`)와 일회성 게임 등장 이름(`casual_games`)을 이름+클럽으로 그룹핑해 반환(전적 조회 진입점).
+- **역할**: 이름으로 선수 후보를 검색. 대회 등록 개인선수(`players`), 단체전 팀원(`teams`+`team_members`), 일회성 게임 등장 이름(`casual_games`)을 이름+클럽으로 그룹핑해 반환(전적 조회 진입점).
 - **입력**: 쿼리 `name`(필수, 부분 일치). 없으면 `[]`.
-- **출력**: 배열 `[{ name, club, player_ids[], registrations: [{tournament_name, division_name}], has_casual_games }]`.
+- **출력**: 배열 `[{ name, club, player_ids[], team_ids[], registrations: [{tournament_name, division_name, match_type?}], has_casual_games }]`.
 - **비즈니스 규칙**:
   - `players`: `name ilike %name%`, `confirmed=true`, 최대 50건. 조인으로 `divisions → tournaments` 등록 이력 수집. 키 `` `${name}|${club ?? ''}` ``로 그룹핑, `player_ids` 누적(동명이인·다중 등록 대응 → FEAT-RNK-02의 `ids`로 전달).
+  - `teams`: `confirmed=true`, 최대 200건. `team_members(player_name)` 조인으로 팀원 목록 확보. 각 팀에서 **검색어에 이름이 포함된 팀원**을 찾아 해당 팀원 이름+팀 클럽 키로 그룹 생성, `team_ids`에 팀 ID 누적. `registrations`에 `match_type='team'` 등록 이력 추가.
   - `casual_games`: `player1_name ilike OR player2_name ilike`, 최대 100건. 이름이 매칭되는 쪽을 후보로 추가하고 `has_casual_games=true` 설정(대회 기록 없이 일회성만 있는 선수도 노출).
-- **관련 테이블**: 읽기 `players`(+ 조인 `divisions → tournaments`), `casual_games`. 쓰기 없음.
-- **주의사항**: 두 쿼리는 병렬. 검색 결과의 `player_ids`/`name`+`club`을 전적 API에 전달하는 것이 표준 흐름.
+  - 세 쿼리(players, teams, casual_games)는 병렬 실행.
+- **관련 테이블**: 읽기 `players`(+ 조인 `divisions → tournaments`), `teams` + `team_members`(+ 조인 `divisions → tournaments`), `casual_games`. 쓰기 없음.
+- **주의사항**: 검색 결과의 `player_ids`(개인전) + `team_ids`(단체전) + `name`+`club`(일회성)을 전적 API(FEAT-RNK-02)에 함께 전달하는 것이 표준 흐름.
 
 ---
 

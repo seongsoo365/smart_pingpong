@@ -10,7 +10,8 @@ interface GroupedPlayer {
   name: string
   club: string | null
   player_ids: string[]
-  registrations: { tournament_name: string; division_name: string }[]
+  team_ids: string[]
+  registrations: { tournament_name: string; division_name: string; match_type?: string }[]
   has_casual_games: boolean
 }
 
@@ -25,6 +26,7 @@ interface MatchRecord {
   opponent_id: string | null
   opponent_name: string
   opponent_club?: string
+  opponent_members?: string[]
   my_score: number
   opp_score: number
   won: boolean
@@ -35,6 +37,7 @@ interface H2HEntry {
   opponent_key: string
   opponent_name: string
   opponent_club?: string
+  opponent_members?: string[]
   wins: number
   losses: number
   matches: MatchRecord[]
@@ -68,10 +71,11 @@ export default function PlayersPage() {
   const [includeTournament, setIncludeTournament] = useState(true)
   const [includeCasual, setIncludeCasual] = useState(true)
   const [onlyMyGames, setOnlyMyGames] = useState(false)
-  const [lastSearchState, setLastSearchState] = useState<{ playerIds: string[]; name: string; club: string | null } | null>(null)
+  const [lastSearchState, setLastSearchState] = useState<{ playerIds: string[]; teamIds: string[]; name: string; club: string | null } | null>(null)
 
   const loadRecords = useCallback(async (
     playerIds: string[],
+    teamIds: string[],
     name: string,
     club: string | null,
     opts?: { tournament?: boolean; casual?: boolean; myGameIds?: string[] }
@@ -85,6 +89,7 @@ export default function PlayersPage() {
     try {
       const params = new URLSearchParams()
       if (playerIds.length > 0) params.set('ids', playerIds.join(','))
+      if (teamIds.length > 0) params.set('team_ids', teamIds.join(','))
       if (name) params.set('name', name)
       if (club) params.set('club', club)
       if (!useTournament) params.set('include_tournament', 'false')
@@ -115,12 +120,13 @@ export default function PlayersPage() {
       const data: GroupedPlayer[] = await res.json()
       setSearchResults(data)
       if (data.length > 0) {
-        const allIds = data.flatMap(p => p.player_ids)
-        setLastSearchState({ playerIds: allIds, name: trimmed, club: null })
+        const allIds = data.flatMap(p => p.player_ids ?? [])
+        const allTeamIds = data.flatMap(p => p.team_ids ?? [])
+        setLastSearchState({ playerIds: allIds, teamIds: allTeamIds, name: trimmed, club: null })
         if (onlyMyGames) {
-          await loadRecords(allIds, trimmed, null, { tournament: false, casual: true, myGameIds: getMyGameIds() })
+          await loadRecords(allIds, allTeamIds, trimmed, null, { tournament: false, casual: true, myGameIds: getMyGameIds() })
         } else {
-          await loadRecords(allIds, trimmed, null)
+          await loadRecords(allIds, allTeamIds, trimmed, null)
         }
       }
     } catch {
@@ -134,7 +140,7 @@ export default function PlayersPage() {
     const next = !includeTournament
     setIncludeTournament(next)
     if (lastSearchState) {
-      loadRecords(lastSearchState.playerIds, lastSearchState.name, lastSearchState.club, { tournament: next, casual: includeCasual })
+      loadRecords(lastSearchState.playerIds, lastSearchState.teamIds, lastSearchState.name, lastSearchState.club, { tournament: next, casual: includeCasual })
     }
   }, [includeTournament, includeCasual, lastSearchState, loadRecords])
 
@@ -142,7 +148,7 @@ export default function PlayersPage() {
     const next = !includeCasual
     setIncludeCasual(next)
     if (lastSearchState) {
-      loadRecords(lastSearchState.playerIds, lastSearchState.name, lastSearchState.club, { tournament: includeTournament, casual: next })
+      loadRecords(lastSearchState.playerIds, lastSearchState.teamIds, lastSearchState.name, lastSearchState.club, { tournament: includeTournament, casual: next })
     }
   }, [includeTournament, includeCasual, lastSearchState, loadRecords])
 
@@ -151,13 +157,13 @@ export default function PlayersPage() {
     setOnlyMyGames(next)
     if (lastSearchState) {
       if (next) {
-        loadRecords(lastSearchState.playerIds, lastSearchState.name, lastSearchState.club, {
+        loadRecords(lastSearchState.playerIds, lastSearchState.teamIds, lastSearchState.name, lastSearchState.club, {
           tournament: false,
           casual: true,
           myGameIds: getMyGameIds(),
         })
       } else {
-        loadRecords(lastSearchState.playerIds, lastSearchState.name, lastSearchState.club, {
+        loadRecords(lastSearchState.playerIds, lastSearchState.teamIds, lastSearchState.name, lastSearchState.club, {
           tournament: includeTournament,
           casual: includeCasual,
         })
@@ -185,9 +191,10 @@ export default function PlayersPage() {
         const data: GroupedPlayer[] = await res.json()
         setSearchResults(data)
         if (data.length > 0) {
-          const allIds = data.flatMap(p => p.player_ids)
-          setLastSearchState({ playerIds: allIds, name, club: null })
-          await loadRecords(allIds, name, null)
+          const allIds = data.flatMap(p => p.player_ids ?? [])
+          const allTeamIds = data.flatMap(p => p.team_ids ?? [])
+          setLastSearchState({ playerIds: allIds, teamIds: allTeamIds, name, club: null })
+          await loadRecords(allIds, allTeamIds, name, null)
         }
       } catch {
         // 자동 조회 실패는 무시
@@ -328,6 +335,9 @@ export default function PlayersPage() {
                           {h.opponent_club && (
                             <span className="text-xs text-muted-foreground ml-2">{h.opponent_club}</span>
                           )}
+                          {h.opponent_members && h.opponent_members.length > 0 && (
+                            <p className="text-xs text-muted-foreground mt-0.5 truncate">{h.opponent_members.join(', ')}</p>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 text-sm shrink-0">
                           <span className="text-primary font-semibold">{h.wins}승</span>
@@ -389,6 +399,9 @@ export default function PlayersPage() {
                         <span className="font-medium text-sm">{m.opponent_name}</span>
                         {m.opponent_club && (
                           <span className="text-xs text-muted-foreground">{m.opponent_club}</span>
+                        )}
+                        {m.opponent_members && m.opponent_members.length > 0 && (
+                          <span className="text-xs text-muted-foreground">({m.opponent_members.join(', ')})</span>
                         )}
                       </div>
                       <p className="text-sm text-muted-foreground mt-0.5 truncate">

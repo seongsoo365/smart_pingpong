@@ -2,24 +2,29 @@ import { createClientSafe } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { getMatchRatingPoints } from '@/lib/utils/rating'
 
+const UUID_RE = /^[0-9a-f-]{36}$/
+
 export async function GET(req: NextRequest) {
   const idsParam = req.nextUrl.searchParams.get('ids') ?? ''
+  const teamIdsParam = req.nextUrl.searchParams.get('team_ids') ?? ''
   const nameParam = req.nextUrl.searchParams.get('name')?.trim() ?? ''
   const clubParam = req.nextUrl.searchParams.get('club')?.trim() ?? ''
   const includeTournament = req.nextUrl.searchParams.get('include_tournament') !== 'false'
   const includeCasual = req.nextUrl.searchParams.get('include_casual') !== 'false'
   const casualGameIdsParam = req.nextUrl.searchParams.get('casual_game_ids')
   const hasCasualGameFilter = casualGameIdsParam !== null
-  const casualGameIds = casualGameIdsParam
-    ? casualGameIdsParam.split(',').filter(id => /^[0-9a-f-]{36}$/.test(id))
+  const casualGameIds: string[] = casualGameIdsParam
+    ? casualGameIdsParam.split(',').filter((id: string) => UUID_RE.test(id))
     : []
 
-  const playerIds = idsParam.split(',').filter(id => /^[0-9a-f-]{36}$/.test(id))
+  const playerIds: string[] = idsParam.split(',').filter((id: string) => UUID_RE.test(id))
+  const teamIds: string[] = teamIdsParam.split(',').filter((id: string) => UUID_RE.test(id))
   const hasIds = playerIds.length > 0
+  const hasTeamIds = teamIds.length > 0
   const hasName = !!nameParam
 
-  if (!hasIds && !hasName) {
-    return NextResponse.json({ error: 'ids 또는 name 필요' }, { status: 400 })
+  if (!hasIds && !hasTeamIds && !hasName) {
+    return NextResponse.json({ error: 'ids, team_ids 또는 name 필요' }, { status: 400 })
   }
 
   const supabase = await createClientSafe()
@@ -39,6 +44,7 @@ export async function GET(req: NextRequest) {
     opponent_id: string | null
     opponent_name: string
     opponent_club?: string
+    opponent_members?: string[]
     my_score: number
     opp_score: number
     won: boolean
@@ -49,20 +55,28 @@ export async function GET(req: NextRequest) {
   const matchRecords: MatchRecord[] = []
   let playerInfo: { name: string; club?: string } | null = null
 
-  // ── 대회 전적 ──
-  if (hasIds && includeTournament) {
-    const { data: players } = await supabase
-      .from('players')
-      .select('id, name, club')
-      .in('id', playerIds)
-      .limit(1)
-
-    if (players && players.length > 0) {
-      playerInfo = { name: players[0].name, club: players[0].club ?? undefined }
+  // ── 대회 전적 (개인전 + 단체전 통합) ──
+  if ((hasIds || hasTeamIds) && includeTournament) {
+    // 본인 정보 (이름/클럽) — 개인전 우선, 없으면 name 파라미터
+    if (hasIds) {
+      const { data: players } = await supabase
+        .from('players')
+        .select('id, name, club')
+        .in('id', playerIds)
+        .limit(1)
+      if (players && players.length > 0) {
+        playerInfo = { name: players[0].name, club: players[0].club ?? undefined }
+      }
+    }
+    if (!playerInfo && hasName) {
+      playerInfo = { name: nameParam, club: clubParam || undefined }
     }
 
-    const playerIdSet = new Set(playerIds)
-    const orFilter = `participant1_id.in.(${playerIds.join(',')}),participant2_id.in.(${playerIds.join(',')})`
+    const orParts: string[] = []
+    if (hasIds) orParts.push(`participant1_id.in.(${playerIds.join(',')}),participant2_id.in.(${playerIds.join(',')})`)
+    if (hasTeamIds) orParts.push(`participant1_id.in.(${teamIds.join(',')}),participant2_id.in.(${teamIds.join(',')})`)
+    const orFilter = orParts.join(',')
+
     const { data: matches, error: matchError } = await supabase
       .from('matches')
       .select(`
@@ -78,87 +92,163 @@ export async function GET(req: NextRequest) {
       `)
       .or(orFilter)
       .eq('status', 'completed')
-      .eq('participant1_type', 'player')
 
     if (matchError) return NextResponse.json({ error: matchError.message }, { status: 500 })
+    if (!matches || matches.length === 0) {
+      // 대회 전적이 없으면 개인전/단체전 관련 로직 없이 넘어감
+    } else {
+      // phase별 max(round) 계산
+      const phaseMaxRound = new Map<string, number>()
+      for (const m of matches) {
+        if (!m.phase_id) continue
+        const prev = phaseMaxRound.get(m.phase_id) ?? 0
+        phaseMaxRound.set(m.phase_id, Math.max(prev, m.round))
+      }
 
-    // phase별 max(round) 계산
-    const phaseMaxRound = new Map<string, number>()
-    for (const m of matches ?? []) {
-      if (!m.phase_id) continue
-      const prev = phaseMaxRound.get(m.phase_id) ?? 0
-      phaseMaxRound.set(m.phase_id, Math.max(prev, m.round))
-    }
+      // 개인전 참가자 ID 모음 (participant1_type='player')
+      const indivIds = new Set<string>()
+      // 단체전 참가자 ID 모음 (participant1_type='team')
+      const teamSideIds = new Set<string>()
+      for (const m of matches) {
+        const type = m.participant1_type as 'player' | 'team'
+        if (type === 'player') {
+          if (m.participant1_id) indivIds.add(m.participant1_id)
+          if (m.participant2_id) indivIds.add(m.participant2_id)
+        } else {
+          if (m.participant1_id) teamSideIds.add(m.participant1_id)
+          if (m.participant2_id) teamSideIds.add(m.participant2_id)
+        }
+      }
 
-    const opponentIds = [
-      ...new Set(
-        (matches ?? [])
-          .map(m => (playerIdSet.has(m.participant1_id ?? '') ? m.participant2_id : m.participant1_id))
-          .filter((id): id is string => !!id)
-      ),
-    ]
+      const [
+        { data: players },
+        { data: teams },
+      ] = await Promise.all([
+        indivIds.size > 0
+          ? supabase.from('players').select('id, name, club').in('id', [...indivIds])
+          : Promise.resolve({ data: [] }),
+        teamSideIds.size > 0
+          ? supabase.from('teams').select('id, name, club, team_members(player_name, player_order)').in('id', [...teamSideIds])
+          : Promise.resolve({ data: [] }),
+      ])
 
-    const opponentMap = new Map<string, { id: string; name: string; club?: string }>()
-    if (opponentIds.length > 0) {
-      const { data: opponents } = await supabase
-        .from('players')
-        .select('id, name, club')
-        .in('id', opponentIds)
-      for (const o of opponents ?? []) opponentMap.set(o.id, o)
-    }
+      const playerMap = new Map<string, { id: string; name: string; club?: string }>()
+      for (const p of players ?? []) playerMap.set(p.id, p)
 
-    for (const m of matches ?? []) {
-      const isP1 = playerIdSet.has(m.participant1_id ?? '')
-      const opponentId = isP1 ? m.participant2_id : m.participant1_id
-      const opponent = opponentId ? opponentMap.get(opponentId) : null
-      const myScore = (isP1 ? m.score1 : m.score2) ?? 0
-      const oppScore = (isP1 ? m.score2 : m.score1) ?? 0
-      const won = playerIdSet.has(m.winner_id ?? '')
+      type TeamInfo = { id: string; name: string; club?: string; members: string[] }
+      const teamMap = new Map<string, TeamInfo>()
+      for (const t of teams ?? []) {
+        const members = ((t.team_members as unknown as { player_name: string; player_order: number }[]) ?? [])
+          .sort((a, b) => a.player_order - b.player_order)
+          .map(m => m.player_name)
+        teamMap.set(t.id, { id: t.id, name: t.name, club: t.club ?? undefined, members })
+      }
 
-      const sets = [...(m.match_sets ?? [])].sort((a, b) => a.set_number - b.set_number).map(s => ({
-        set_number: s.set_number,
-        my_score: isP1 ? s.score1 : s.score2,
-        opp_score: isP1 ? s.score2 : s.score1,
-      }))
+      // "내 팀" ID: teamIds 중 teamMap에 있는 것
+      const myTeamIdSet = new Set(teamIds.filter((id: string) => teamMap.has(id)))
+      const myPlayerIdSet = new Set(playerIds)
+      const myName = playerInfo?.name ?? nameParam
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const phase = m.tournament_phases as unknown as {
-        phase_type: string
-        format: string
-        divisions: { name: string; tournaments: { id: string; name: string; start_date: string } | null } | null
-      } | null
-      const division = phase?.divisions
-      const tournament = division?.tournaments
-      const phaseType = (phase?.phase_type ?? 'main') as 'preliminary' | 'main'
-      const totalRounds = m.phase_id ? (phaseMaxRound.get(m.phase_id) ?? m.round) : m.round
-      const pointsEarned = getMatchRatingPoints({
-        phase_type: phaseType,
-        format: phase?.format ?? 'single_elimination',
-        round: m.round,
-        total_rounds: totalRounds,
-        won,
-      })
+      for (const m of matches) {
+        const type = m.participant1_type as 'player' | 'team'
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const phase = m.tournament_phases as unknown as {
+          phase_type: string
+          format: string
+          divisions: { name: string; tournaments: { id: string; name: string; start_date: string } | null } | null
+        } | null
+        const division = phase?.divisions
+        const tournament = division?.tournaments
+        const phaseType = (phase?.phase_type ?? 'main') as 'preliminary' | 'main'
+        const totalRounds = m.phase_id ? (phaseMaxRound.get(m.phase_id) ?? m.round) : m.round
 
-      matchRecords.push({
-        id: m.id,
-        phase_id: m.phase_id ?? null,
-        tournament_id: tournament?.id ?? null,
-        tournament_name: tournament?.name ?? '(알 수 없음)',
-        tournament_start: tournament?.start_date ?? null,
-        division_name: division?.name ?? '(알 수 없음)',
-        phase_type: phaseType,
-        format: phase?.format ?? 'single_elimination',
-        round: m.round,
-        total_rounds: totalRounds,
-        opponent_id: opponentId ?? null,
-        opponent_name: opponent?.name ?? '(상대 미상)',
-        opponent_club: opponent?.club ?? undefined,
-        my_score: myScore,
-        opp_score: oppScore,
-        won,
-        points_earned: pointsEarned,
-        sets,
-      })
+        let myScore = 0
+        let oppScore = 0
+        let won = false
+        let opponentName = '(상대 미상)'
+        let opponentClub: string | undefined
+        let opponentMembers: string[] | undefined
+        let opponentId: string | null = null
+
+        if (type === 'player') {
+          const p1 = m.participant1_id ? playerMap.get(m.participant1_id) : null
+          const p2 = m.participant2_id ? playerMap.get(m.participant2_id) : null
+          const isP1 = p1 ? myPlayerIdSet.has(p1.id) : false
+          const isP2 = p2 ? myPlayerIdSet.has(p2.id) : false
+          if (!isP1 && !isP2) continue
+          const my = isP1 ? p1 : p2
+          const opp = isP1 ? p2 : p1
+          if (!my) continue
+          myScore = isP1 ? (m.score1 ?? 0) : (m.score2 ?? 0)
+          oppScore = isP1 ? (m.score2 ?? 0) : (m.score1 ?? 0)
+          won = myPlayerIdSet.has(m.winner_id ?? '')
+          if (opp) {
+            opponentName = opp.name
+            opponentClub = opp.club
+            opponentId = opp.id
+          }
+        } else {
+          const t1 = m.participant1_id ? teamMap.get(m.participant1_id) : null
+          const t2 = m.participant2_id ? teamMap.get(m.participant2_id) : null
+          // 내 팀인지 판별: teamIds 또는 (playerInfo.name으로 이름 매칭 폴백)
+          const isT1 = t1 ? (myTeamIdSet.has(t1.id) || (myName ? t1.members.includes(myName) : false)) : false
+          const isT2 = t2 ? (myTeamIdSet.has(t2.id) || (myName ? t2.members.includes(myName) : false)) : false
+          if (!isT1 && !isT2) continue
+          const my = isT1 ? t1 : t2
+          const opp = isT1 ? t2 : t1
+          if (!my) continue
+          myScore = isT1 ? (m.score1 ?? 0) : (m.score2 ?? 0)
+          oppScore = isT1 ? (m.score2 ?? 0) : (m.score1 ?? 0)
+          won = myTeamIdSet.has(m.winner_id ?? '') ||
+            (myName ? (m.winner_id === (isT1 ? m.participant1_id : m.participant2_id)) : false)
+          if (opp) {
+            opponentName = opp.name
+            opponentClub = opp.club
+            opponentMembers = opp.members
+            opponentId = opp.id
+          }
+        }
+
+        const setsRaw = (m.match_sets ?? []) as unknown as { set_number: number; score1: number; score2: number }[]
+        const isP1Side = (type === 'player')
+          ? (m.participant1_id ? myPlayerIdSet.has(m.participant1_id) : false)
+          : (m.participant1_id ? (myTeamIdSet.has(m.participant1_id) || (myName ? (teamMap.get(m.participant1_id)?.members ?? []).includes(myName) : false)) : false)
+        const sets = [...setsRaw].sort((a, b) => a.set_number - b.set_number).map(s => ({
+          set_number: s.set_number,
+          my_score: isP1Side ? s.score1 : s.score2,
+          opp_score: isP1Side ? s.score2 : s.score1,
+        }))
+
+        const pointsEarned = getMatchRatingPoints({
+          phase_type: phaseType,
+          format: phase?.format ?? 'single_elimination',
+          round: m.round,
+          total_rounds: totalRounds,
+          won,
+        })
+
+        matchRecords.push({
+          id: m.id,
+          phase_id: m.phase_id ?? null,
+          tournament_id: tournament?.id ?? null,
+          tournament_name: tournament?.name ?? '(알 수 없음)',
+          tournament_start: tournament?.start_date ?? null,
+          division_name: division?.name ?? '(알 수 없음)',
+          phase_type: phaseType,
+          format: phase?.format ?? 'single_elimination',
+          round: m.round,
+          total_rounds: totalRounds,
+          opponent_id: opponentId,
+          opponent_name: opponentName,
+          opponent_club: opponentClub,
+          opponent_members: opponentMembers,
+          my_score: myScore,
+          opp_score: oppScore,
+          won,
+          points_earned: pointsEarned,
+          sets,
+        })
+      }
     }
   }
 
@@ -168,65 +258,63 @@ export async function GET(req: NextRequest) {
       playerInfo = { name: nameParam, club: clubParam || undefined }
     }
 
-    // 내가 등록한 게임만 보기: IDs가 없으면 결과 없음
     if (hasCasualGameFilter && casualGameIds.length === 0) {
-      // skip — 등록된 게임 없음
+      // skip
     } else {
-    let casualQuery = supabase.from('casual_games').select('*')
-    if (hasCasualGameFilter) {
-      casualQuery = casualQuery.in('id', casualGameIds)
-    } else {
-      casualQuery = casualQuery.or(`player1_name.eq.${nameParam},player2_name.eq.${nameParam}`)
+      let casualQuery = supabase.from('casual_games').select('*')
+      if (hasCasualGameFilter) {
+        casualQuery = casualQuery.in('id', casualGameIds)
+      } else {
+        casualQuery = casualQuery.or(`player1_name.eq.${nameParam},player2_name.eq.${nameParam}`)
+      }
+      const { data: casualGames, error: casualError } = await casualQuery
+        .order('played_at', { ascending: false })
+
+      if (casualError) return NextResponse.json({ error: casualError.message }, { status: 500 })
+
+      for (const g of casualGames ?? []) {
+        const isP1 = g.player1_name === nameParam &&
+          (clubParam ? (g.player1_club ?? '') === clubParam : true)
+        const isP2 = g.player2_name === nameParam &&
+          (clubParam ? (g.player2_club ?? '') === clubParam : true)
+
+        if (!isP1 && !isP2) continue
+
+        const myScore = isP1 ? g.score1 : g.score2
+        const oppScore = isP1 ? g.score2 : g.score1
+        const won = myScore > oppScore
+
+        const rawSets: { score1: number; score2: number }[] = Array.isArray(g.sets) ? g.sets : []
+        const sets = rawSets.map((s, i) => ({
+          set_number: i + 1,
+          my_score: isP1 ? s.score1 : s.score2,
+          opp_score: isP1 ? s.score2 : s.score1,
+        }))
+
+        matchRecords.push({
+          id: g.id,
+          phase_id: null,
+          tournament_id: null,
+          tournament_name: '숏게임',
+          tournament_start: g.played_at,
+          division_name: g.venue ?? '',
+          phase_type: 'casual',
+          format: 'casual',
+          round: 0,
+          total_rounds: 0,
+          opponent_id: null,
+          opponent_name: isP1 ? g.player2_name : g.player1_name,
+          opponent_club: (isP1 ? g.player2_club : g.player1_club) ?? undefined,
+          my_score: myScore,
+          opp_score: oppScore,
+          won,
+          points_earned: won ? 10 : 0,
+          sets,
+        })
+      }
     }
-    const { data: casualGames, error: casualError } = await casualQuery
-      .order('played_at', { ascending: false })
-
-    if (casualError) return NextResponse.json({ error: casualError.message }, { status: 500 })
-
-    for (const g of casualGames ?? []) {
-      const isP1 = g.player1_name === nameParam &&
-        (clubParam ? (g.player1_club ?? '') === clubParam : true)
-      const isP2 = g.player2_name === nameParam &&
-        (clubParam ? (g.player2_club ?? '') === clubParam : true)
-
-      if (!isP1 && !isP2) continue
-
-      const myScore = isP1 ? g.score1 : g.score2
-      const oppScore = isP1 ? g.score2 : g.score1
-      const won = myScore > oppScore
-
-      const rawSets: { score1: number; score2: number }[] = Array.isArray(g.sets) ? g.sets : []
-      const sets = rawSets.map((s, i) => ({
-        set_number: i + 1,
-        my_score: isP1 ? s.score1 : s.score2,
-        opp_score: isP1 ? s.score2 : s.score1,
-      }))
-
-      matchRecords.push({
-        id: g.id,
-        phase_id: null,
-        tournament_id: null,
-        tournament_name: '숏게임',
-        tournament_start: g.played_at,
-        division_name: g.venue ?? '',
-        phase_type: 'casual',
-        format: 'casual',
-        round: 0,
-        total_rounds: 0,
-        opponent_id: null,
-        opponent_name: isP1 ? g.player2_name : g.player1_name,
-        opponent_club: (isP1 ? g.player2_club : g.player1_club) ?? undefined,
-        my_score: myScore,
-        opp_score: oppScore,
-        won,
-        points_earned: won ? 10 : 0,
-        sets,
-      })
-    }
-    } // end else (hasCasualGameFilter)
   }
 
-  // casual 블록이 스킵됐을 때도 name 파라미터로 playerInfo 구성
   if (!playerInfo && hasName) {
     playerInfo = { name: nameParam, club: clubParam || undefined }
   }
@@ -245,6 +333,7 @@ export async function GET(req: NextRequest) {
     opponent_key: string
     opponent_name: string
     opponent_club?: string
+    opponent_members?: string[]
     wins: number
     losses: number
     matches: typeof matchRecords
@@ -253,7 +342,15 @@ export async function GET(req: NextRequest) {
   for (const m of matchRecords) {
     const key = `${m.opponent_name}|${m.opponent_club ?? ''}`
     if (!h2hMap.has(key)) {
-      h2hMap.set(key, { opponent_key: key, opponent_name: m.opponent_name, opponent_club: m.opponent_club, wins: 0, losses: 0, matches: [] })
+      h2hMap.set(key, {
+        opponent_key: key,
+        opponent_name: m.opponent_name,
+        opponent_club: m.opponent_club,
+        opponent_members: m.opponent_members,
+        wins: 0,
+        losses: 0,
+        matches: [],
+      })
     }
     const entry = h2hMap.get(key)!
     if (m.won) entry.wins++

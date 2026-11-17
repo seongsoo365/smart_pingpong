@@ -150,14 +150,14 @@
 | 유형 | 클라이언트 컴포넌트 |
 | 접근권한 | 비인증 공개 |
 
-- **주요 기능**: 선수명을 검색해 상대별(H2H) 전적, 승/패/승률 요약, 전체 경기 이력을 조회. 대회등록/숏게임 포함 여부 토글, "내가 등록한 숏게임만" 필터. 로그인 사용자는 프로필 이름으로 자동 조회.
+- **주요 기능**: 선수명을 검색해 상대별(H2H) 전적, 승/패/승률 요약, 전체 경기 이력을 조회. 개인전·단체전·숏게임 모두 포함. 대회등록/숏게임 포함 여부 토글, "내가 등록한 숏게임만" 필터. 로그인 사용자는 프로필 이름으로 자동 조회.
 - **입력 항목**:
   - 선수명 검색어(text, Enter 또는 검색 버튼).
   - 필터 토글: 대회등록 포함(기본 on), 숏게임 포함(기본 on), 내가 등록한 숏게임만(off).
-- **처리 흐름**: 검색 시 `/api/players/search?name=` 호출 → 동명 그룹의 모든 player_ids 수집 → `/api/players/records`(ids/name/club/include_tournament/include_casual/casual_game_ids 파라미터)로 전적 조회 → H2H·경기이력 렌더. 토글 변경 시 마지막 검색 상태로 재조회. mount 시 로그인 사용자면 `user_profiles.name`으로 자동 검색. "내 숏게임만"은 `getMyGameIds()`(localStorage)를 `casual_game_ids`로 전달하며 대회는 제외.
+- **처리 흐름**: 검색 시 `/api/players/search?name=` 호출 → 동명 그룹의 `player_ids`(개인전) + `team_ids`(단체전) 수집 → `/api/players/records`(ids/team_ids/name/club/include_tournament/include_casual/casual_game_ids 파라미터)로 전적 조회 → H2H·경기이력 렌더. 단체전 경기는 상대를 **팀명 + 구성원 목록**(`opponent_members`)으로 표시. 토글 변경 시 마지막 검색 상태로 재조회. mount 시 로그인 사용자면 `user_profiles.name`으로 자동 검색. "내 숏게임만"은 `getMyGameIds()`(localStorage)를 `casual_game_ids`로 전달하며 대회는 제외.
 - **연동 API/테이블**: `/api/players/search`(GET), `/api/players/records`(GET). mount 자동조회용 Supabase 직접 접근 — `user_profiles`(SELECT name). `lib/utils/myGames`(getMyGameIds).
 - **주요 컴포넌트**: `components/ui/button`(Button), lucide 아이콘. H2H 아코디언은 로컬 상태로 펼침 제어.
-- **주의사항**: "내가 등록한 숏게임만" 활성 시 대회등록/숏게임 토글은 비활성(`opacity-30 pointer-events-none`). `useEffect` 자동조회 실패는 무시. 로딩은 검색·전적 조회 상태 OR.
+- **주의사항**: "내가 등록한 숏게임만" 활성 시 대회등록/숏게임 토글은 비활성(`opacity-30 pointer-events-none`). `useEffect` 자동조회 실패는 무시. 로딩은 검색·전적 조회 상태 OR. 단체전 상대는 H2H 헤더와 경기 이력 모두에 `opponent_members`(팀 구성원 이름, 쉼표 구분)를 팀명 하단에 함께 표시.
 
 ---
 
